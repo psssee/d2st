@@ -58,10 +58,11 @@ python runs/run.py --cfg config/ucf101/ViT_UCF101.yaml
 ## Citation
 
 ```
-@article{pei2023d,
-  title={D $\^{} 2$ ST-Adapter: Disentangled-and-Deformable Spatio-Temporal Adapter for Few-shot Action Recognition},
-  author={Pei, Wenjie and Tan, Qizhong and Lu, Guangming and Tian, Jiandong},
-  journal={arXiv preprint arXiv:2312.01431},
-  year={2023}
+@inproceedings{pei2025d2st,
+  title={D2ST-Adapter: Disentangled-and-deformable spatio-temporal adapter for few-shot action recognition},
+  author={Pei, Wenjie and Tan, Qizhong and Lu, Guangming and Tian, Jiandong and Yu, Jun},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
+  pages={11317--11326},
+  year={2025}
 }
 ```

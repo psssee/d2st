@@ -59,7 +59,7 @@ DATA:
   CLIP_INTERVAL: 8
   FPS: 12
   TARGET_FPS: 12
-
+  NUM_WORKERS: 0
 FRAME_SELECTOR:
   ENABLE: true
   TOTAL_FRAMES: 32
@@ -73,7 +73,6 @@ FRAME_SELECTOR:
   ENABLE_CACHE_DECODE: true
   FEAT_CACHE_DIR: "/mnt/data/yanyi2025/lrc/code/CLIP-FSAR/data/feat_cache/ssv2/ViT-B-16_T32"
   CACHE_MISMATCH_POLICY: "error"
-
 
 FOCUS:
   ENABLE: true

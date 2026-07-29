@@ -54,6 +54,7 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         self.split = split
         self.data_root_dir = cfg.DATA.DATA_ROOT_DIR
         self.anno_dir = cfg.DATA.ANNO_DIR
+        self._corrupted_videos = set()
 
         if self.split in ["train", "val"]:
             self.dataset_name = cfg.TRAIN.DATASET
@@ -342,6 +343,10 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         """
         sample_info = self._get_sample_info(index)
 
+        # skip known-corrupted videos silently
+        if sample_info["path"] in self._corrupted_videos:
+            return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+
         # decode the data
         # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
         is_oss = sample_info["path"][:3] == "oss"
@@ -361,6 +366,7 @@ class BaseVideoDataset(torch.utils.data.Dataset):
                 ))
 
         if not success:
+            self._corrupted_videos.add(sample_info["path"])
             return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
 
         if self.gpu_transform:

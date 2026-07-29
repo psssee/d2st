@@ -80,6 +80,7 @@ class Few_shot(BaseVideoDataset):
         if self.split == "test" and self.cfg.PRETRAIN.ENABLE == False:
             self._pre_transformation_config_required = True
         self.split_dataset = split
+        self._corrupted_videos = set()
 
     def _get_ssl_label(self, frames):
         pass
@@ -259,6 +260,11 @@ class Few_shot(BaseVideoDataset):
 
             sample_info = self._get_sample_info(index)
 
+            # skip known-corrupted videos silently
+            if sample_info["path"] in getattr(self, "_corrupted_videos", set()):
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
+
             # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
             is_oss = sample_info["path"][:3] == "oss"
             retries = (1 if self.split == "train" else 10) if is_oss else 1
@@ -277,6 +283,7 @@ class Few_shot(BaseVideoDataset):
                     ))
 
             if not success:
+                self._corrupted_videos.add(sample_info["path"])
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
                 dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
@@ -343,6 +350,10 @@ class Few_shot(BaseVideoDataset):
             sample_info = {
                 "path": video_path,
             }
+            # skip known-corrupted videos silently
+            if video_path in self._corrupted_videos:
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
             index = vid_id
             # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
             is_oss = sample_info["path"][:3] == "oss"
@@ -362,6 +373,7 @@ class Few_shot(BaseVideoDataset):
                     ))
 
             if not success:
+                self._corrupted_videos.add(video_path)
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
                 dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
@@ -418,6 +430,10 @@ class Few_shot(BaseVideoDataset):
             sample_info = {
                 "path": video_path,
             }
+            # skip known-corrupted videos silently
+            if video_path in self._corrupted_videos:
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
             index = vid_id
             # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
             is_oss = sample_info["path"][:3] == "oss"
@@ -437,6 +453,7 @@ class Few_shot(BaseVideoDataset):
                     ))
 
             if not success:
+                self._corrupted_videos.add(video_path)
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
                 dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)

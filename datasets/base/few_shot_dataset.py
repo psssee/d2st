@@ -273,8 +273,9 @@ class Few_shot(BaseVideoDataset):
                     break
                 except Exception as e:
                     success = False
-                    traceback.print_exc()
-                    logger.warning("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
+                    if retry == 0:
+                        traceback.print_exc()
+                    logger.debug("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
                         retry + 1, retries, index, sample_info["path"]
                     ))
 
@@ -286,18 +287,11 @@ class Few_shot(BaseVideoDataset):
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
                 return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
-            if self.split in ["test"] and self.cfg.TEST.ZERO_SHOT:
-                if not hasattr(self, "label_embd"):
-                    self.label_embd = self.word_embd(self.words_to_ids(self.label_names))
-                data["text_embedding"] = self.label_embd
-
             if self.gpu_transform:
                 for k, v in data.items():
                     data[k] = v.cuda(non_blocking=True)
             if self._pre_transformation_config_required:
                 self._pre_transformation_config()
-
-            # self.visualize_frames(data["video"], index)
 
             labels = {}
             labels["supervised"] = sample_info["supervised_label"] if "supervised_label" in sample_info.keys() else {}
@@ -315,7 +309,7 @@ class Few_shot(BaseVideoDataset):
                 if "flow" in data.keys() and "video" in data.keys():
                     data = self.transform(data)
                 elif "video" in data.keys():
-                    data["video"] = self.transform(data["video"])  # C, T, H, W = 3, 16, 240, 320, RGB
+                    data["video"] = self.transform(data["video"])
 
             if "Slowfast" in self.cfg.VIDEO.BACKBONE.META_ARCH and self.split not in ['extract_feat']:
                 slow_idx = torch.linspace(0, data["video"].shape[1], data["video"].shape[1] // self.cfg.VIDEO.BACKBONE.SLOWFAST.ALPHA + 1).long()[:-1]
@@ -330,7 +324,6 @@ class Few_shot(BaseVideoDataset):
             else:
                 meta = {}
 
-            # self.reversed_visualize_frames(data["video"], index)
             return data, labels, index, meta
 
     def get_seq(self, label, idx=-1):
@@ -338,18 +331,15 @@ class Few_shot(BaseVideoDataset):
         c = self.split_few_shot
         if self.cfg.TRAIN.META_BATCH:
             paths, vid_id = c.get_rand_vid(label, idx)
-            # imgs = self.load_and_transform_paths(paths)
             if 'SSv2' in self.dataset_name:
                 video_path = os.path.join(self.data_root_dir, paths + ".mp4")
             else:
                 video_path = os.path.join(self.data_root_dir, paths)
             sample_info = {
                 "path": video_path,
-                # "supervised_label": class_,
             }
-            # sample_info = self._get_sample_info(index)
             index = vid_id
-            retries = 5 if self.split == "train" else 10  # 1
+            retries = 5 if self.split == "train" else 10
             for retry in range(retries):
                 try:
                     data, file_to_remove, success = self.decode(
@@ -358,8 +348,9 @@ class Few_shot(BaseVideoDataset):
                     break
                 except Exception as e:
                     success = False
-                    traceback.print_exc()
-                    logger.warning("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
+                    if retry == 0:
+                        traceback.print_exc()
+                    logger.debug("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
                         retry + 1, retries, index, sample_info["path"]
                     ))
 
@@ -427,7 +418,7 @@ class Few_shot(BaseVideoDataset):
             }
             # sample_info = self._get_sample_info(index)
             index = vid_id
-            retries = 5 if self.split == "train" else 10  # 1
+            retries = 5 if self.split == "train" else 10
             for retry in range(retries):
                 try:
                     data, file_to_remove, success = self.decode(
@@ -436,8 +427,9 @@ class Few_shot(BaseVideoDataset):
                     break
                 except Exception as e:
                     success = False
-                    traceback.print_exc()
-                    logger.warning("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
+                    if retry == 0:
+                        traceback.print_exc()
+                    logger.debug("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
                         retry + 1, retries, index, sample_info["path"]
                     ))
 
@@ -449,10 +441,6 @@ class Few_shot(BaseVideoDataset):
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
                 return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
-            # if self.split in ["test"] and self.cfg.TEST.ZERO_SHOT:
-            #     if not hasattr(self, "label_embd"):
-            #         self.label_embd = self.word_embd(self.words_to_ids(self.label_names))
-            #     data["text_embedding"] = self.label_embd
 
             if self.gpu_transform:
                 for k, v in data.items():

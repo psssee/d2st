@@ -352,8 +352,9 @@ class BaseVideoDataset(torch.utils.data.Dataset):
                 break
             except Exception as e:
                 success = False
-                traceback.print_exc()
-                logger.warning("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
+                if retry == 0:
+                    traceback.print_exc()
+                logger.debug("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
                     retry + 1, retries, index, sample_info["path"]
                 ))
 

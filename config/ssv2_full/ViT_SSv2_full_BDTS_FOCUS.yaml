@@ -66,13 +66,14 @@ FRAME_SELECTOR:
   SELECT_FRAMES: 8
   SEGMENTS: 4
   FEAT_DIM: 0
-  PRETRAINED_CKPT: "output/frame_selector/ssv2_segments_4_ViT-B16/frame_selector_best.pth"
+  PRETRAINED_CKPT: "/mnt/data/yanyi2025/lrc/code/CLIP-FSAR/output/frame_selector/ssv2_ViT-B16/frame_selector_best.pth"
   NUM_ANCHOR_FRAMES: 4
   NUM_KEY_FRAMES: 4
   MIN_FRAME_GAP: 2
   ENABLE_CACHE_DECODE: true
-  FEAT_CACHE_DIR: "data/feat_cache/ssv2/ViT-B-16_T32"
+  FEAT_CACHE_DIR: "/mnt/data/yanyi2025/lrc/code/CLIP-FSAR/data/feat_cache/ssv2/ViT-B-16_T32"
   CACHE_MISMATCH_POLICY: "error"
+
 
 FOCUS:
   ENABLE: true

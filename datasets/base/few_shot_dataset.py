@@ -204,6 +204,8 @@ class Few_shot(BaseVideoDataset):
                     target_labels = []
                     real_support_labels = []
                     real_target_labels = []
+                    support_timestamps = []
+                    target_timestamps = []
 
                     for bl, bc in enumerate(batch_classes):
                         n_total = c.get_num_videos_for_class(bc)
@@ -211,19 +213,23 @@ class Few_shot(BaseVideoDataset):
 
                         for idx in idxs[0:self.cfg.SUPPORT_SHOT]:
                             if hasattr(self.cfg.AUGMENTATION, "SUPPORT_QUERY_DIFF_SUPPORT") and self.cfg.AUGMENTATION.SUPPORT_QUERY_DIFF_SUPPORT and self.split_dataset == "train":
-                                vid, vid_id = self.get_seq_query(bc, idx)
+                                seq_out = self.get_seq_query(bc, idx)
                             else:
-                                vid, vid_id = self.get_seq(bc, idx)
+                                seq_out = self.get_seq(bc, idx)
+                            vid, vid_id, vid_ts = self._unpack_seq(seq_out)
                             support_set.append(vid)
+                            support_timestamps.append(vid_ts)
                             support_labels.append(bl)
                             real_support_labels.append(bc)
 
                         for idx in idxs[self.cfg.SUPPORT_SHOT:]:
                             if hasattr(self.cfg.AUGMENTATION, "SUPPORT_QUERY_DIFF") and self.cfg.AUGMENTATION.SUPPORT_QUERY_DIFF and self.split_dataset == "train":
-                                vid, vid_id = self.get_seq_query(bc, idx)
+                                seq_out = self.get_seq_query(bc, idx)
                             else:
-                                vid, vid_id = self.get_seq(bc, idx)
+                                seq_out = self.get_seq(bc, idx)
+                            vid, vid_id, vid_ts = self._unpack_seq(seq_out)
                             target_set.append(vid)
+                            target_timestamps.append(vid_ts)
                             target_labels.append(bl)
                             real_target_labels.append(bc)
                     break
@@ -235,13 +241,13 @@ class Few_shot(BaseVideoDataset):
                         retry + 1, retries, idxs, bc
                     ))
 
-            s = list(zip(support_set, support_labels, real_support_labels))
+            s = list(zip(support_set, support_labels, real_support_labels, support_timestamps))
             random.shuffle(s)
-            support_set, support_labels, real_support_labels = zip(*s)
+            support_set, support_labels, real_support_labels, support_timestamps = zip(*s)
 
-            t = list(zip(target_set, target_labels, real_target_labels))
+            t = list(zip(target_set, target_labels, real_target_labels, target_timestamps))
             random.shuffle(t)
-            target_set, target_labels, real_target_labels = zip(*t)
+            target_set, target_labels, real_target_labels, target_timestamps = zip(*t)
 
             support_set = torch.cat(support_set)  # [200, 3, 224, 224]
 
@@ -252,7 +258,22 @@ class Few_shot(BaseVideoDataset):
             real_support_labels = torch.FloatTensor(real_support_labels)
             batch_classes = torch.FloatTensor(batch_classes)  # [45., 11., 59., 25., 39.]
 
-            return {"support_set": support_set, "support_labels": support_labels, "target_set": target_set, "target_labels": target_labels, "real_target_labels": real_target_labels, "batch_class_list": batch_classes, "real_support_labels": real_support_labels}
+            task = {
+                "support_set": support_set,
+                "support_labels": support_labels,
+                "target_set": target_set,
+                "target_labels": target_labels,
+                "real_target_labels": real_target_labels,
+                "batch_class_list": batch_classes,
+                "real_support_labels": real_support_labels,
+            }
+            support_timestamps = self._pack_timestamps(support_timestamps)
+            target_timestamps = self._pack_timestamps(target_timestamps)
+            if support_timestamps is not None:
+                task["support_timestamps"] = support_timestamps
+            if target_timestamps is not None:
+                task["target_timestamps"] = target_timestamps
+            return task
 
 
 
@@ -338,6 +359,17 @@ class Few_shot(BaseVideoDataset):
 
             return data, labels, index, meta
 
+    def _unpack_seq(self, seq_out):
+        if isinstance(seq_out, tuple) and len(seq_out) == 3:
+            return seq_out
+        vid, vid_id = seq_out
+        return vid, vid_id, None
+
+    def _pack_timestamps(self, timestamps):
+        if not timestamps or any(ts is None for ts in timestamps):
+            return None
+        return torch.stack([ts.float() for ts in timestamps], dim=0)
+
     def get_seq(self, label, idx=-1):
         """Gets a single video sequence for a meta batch.  """
         c = self.split_few_shot
@@ -416,7 +448,7 @@ class Few_shot(BaseVideoDataset):
                 data["video"] = [slow_frames, fast_frames]
             bu.clear_tmp_file(file_to_remove)
 
-            return data["video"].permute(1, 0, 2, 3), vid_id
+            return data["video"].permute(1, 0, 2, 3), vid_id, data.get("timestamps", None)
 
     def get_seq_query(self, label, idx=-1):
         """Gets a single video sequence for a meta batch.  """
@@ -496,7 +528,7 @@ class Few_shot(BaseVideoDataset):
                 data["video"] = [slow_frames, fast_frames]
             bu.clear_tmp_file(file_to_remove)
 
-            return data["video"].permute(1, 0, 2, 3), vid_id
+            return data["video"].permute(1, 0, 2, 3), vid_id, data.get("timestamps", None)
 
     def __len__(self):
         if self.split == 'train' and hasattr(self.cfg.TRAIN, "NUM_TRAIN_TASKS") and self.cfg.TRAIN.NUM_TRAIN_TASKS:

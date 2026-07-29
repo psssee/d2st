@@ -570,6 +570,48 @@ class Transformer(nn.Module):
         return x
 
 
+class D2STFocusResidual(nn.Module):
+    """Conservative FOCUS-style temporal residual branch for D2ST."""
+
+    def __init__(self, dim, heads=8, dropout=0.1, gate_init=-4.0, temporal_gate_init=-4.0):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.time_proj = nn.Linear(1, dim)
+        self.temporal_alpha = nn.Parameter(torch.tensor(float(temporal_gate_init)))
+        self.temporal = nn.TransformerEncoderLayer(
+            d_model=dim,
+            nhead=heads,
+            dim_feedforward=dim * 2,
+            dropout=dropout,
+            activation="gelu",
+            batch_first=True,
+        )
+        hidden = max(dim // 16, 16)
+        self.gate = nn.Sequential(
+            nn.Linear(dim, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, 1),
+        )
+        nn.init.constant_(self.gate[-1].bias, float(gate_init))
+
+    def forward(self, video_feats, timestamps=None):
+        if timestamps is not None:
+            B, T, _ = video_feats.shape
+            timestamps = timestamps.to(device=video_feats.device, dtype=video_feats.dtype)
+            if timestamps.shape != (B, T):
+                timestamps = timestamps.reshape(B, T)
+            uniform_ts = torch.linspace(
+                0, 1, T, device=video_feats.device, dtype=video_feats.dtype
+            ).unsqueeze(0)
+            temporal_deviation = timestamps - uniform_ts
+            video_feats = video_feats + torch.sigmoid(self.temporal_alpha) * self.time_proj(
+                temporal_deviation.unsqueeze(-1)
+            )
+        residual = self.temporal(self.norm(video_feats))
+        gate = torch.sigmoid(self.gate(video_feats))
+        return video_feats + gate * residual
+
+
 @HEAD_REGISTRY.register()
 class ViT_CLIP(nn.Module):
     def __init__(self, cfg):
@@ -590,6 +632,18 @@ class ViT_CLIP(nn.Module):
         self.ln_post = LayerNorm(self.width)
         if hasattr(self.args.TRAIN, "USE_CLASSIFICATION_VALUE"):
             self.classification_layer = nn.Linear(self.width, int(self.args.TRAIN.NUM_CLASS))
+        self.focus_enable = hasattr(cfg, "FOCUS") and getattr(cfg.FOCUS, "ENABLE", False)
+        if self.focus_enable:
+            self.focus_branch = D2STFocusResidual(
+                dim=self.width,
+                heads=int(getattr(cfg.FOCUS, "HEADS", 8)),
+                dropout=float(getattr(cfg.FOCUS, "DROPOUT", 0.1)),
+                gate_init=float(getattr(cfg.FOCUS, "GATE_INIT", -4.0)),
+                temporal_gate_init=float(getattr(cfg.FOCUS, "TEMPORAL_GATE_INIT", -4.0)),
+            )
+            self.focus_alpha = nn.Parameter(
+                torch.tensor(float(getattr(cfg.FOCUS, "ALPHA_INIT", -4.0)))
+            )
         self.init_weights()
 
     def init_weights(self):
@@ -617,6 +671,33 @@ class ViT_CLIP(nn.Module):
         class_mask = torch.eq(labels, which_class)
         class_mask_indices = torch.nonzero(class_mask, as_tuple=False)
         return torch.reshape(class_mask_indices, (-1,))
+
+    def _bimhm_class_dist(self, support_features, query_features, support_labels):
+        unique_labels = torch.unique(support_labels)
+        support_features = [
+            torch.mean(
+                torch.index_select(
+                    support_features,
+                    0,
+                    self.extract_class_indices(support_labels, c),
+                ),
+                dim=0,
+            )
+            for c in unique_labels
+        ]
+        support_features = torch.stack(support_features)
+
+        support_num = support_features.shape[0]
+        query_num = query_features.shape[0]
+        support_features = support_features.unsqueeze(0).repeat(query_num, 1, 1, 1)
+        support_features = rearrange(support_features, 'q s t c -> q (s t) c')
+
+        frame_sim = torch.matmul(
+            F.normalize(support_features, dim=2),
+            F.normalize(query_features, dim=2).permute(0, 2, 1),
+        ).reshape(query_num, support_num, self.num_frames, self.num_frames)
+        dist = 1 - frame_sim
+        return dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
 
     def get_feat(self, x):
         x = self.conv1(x)  # b*t c h w
@@ -648,6 +729,14 @@ class ViT_CLIP(nn.Module):
 
         support_features = support_features.reshape(-1, self.num_frames, self.args.ADAPTER.WIDTH)
         query_features = query_features.reshape(-1, self.num_frames, self.args.ADAPTER.WIDTH)
+        support_features_raw = support_features
+        query_features_raw = query_features
+        support_timestamps = inputs.get("support_timestamps", None)
+        target_timestamps = inputs.get("target_timestamps", None)
+        if support_timestamps is not None:
+            support_timestamps = support_timestamps.reshape(-1, self.num_frames)
+        if target_timestamps is not None:
+            target_timestamps = target_timestamps.reshape(-1, self.num_frames)
 
         class_logits = None
         if hasattr(self.args.TRAIN, "USE_CLASSIFICATION_VALUE"):
@@ -671,5 +760,18 @@ class ViT_CLIP(nn.Module):
         # OTAM
         # class_dist = OTAM_dist(dist) + OTAM_dist(rearrange(dist, 'q s n m -> q s m n'))
 
-        return_dict = {'logits': - class_dist, 'class_logits': class_logits}
+        logits = -class_dist
+        if self.focus_enable:
+            focus_support = self.focus_branch(support_features_raw, support_timestamps)
+            focus_query = self.focus_branch(query_features_raw, target_timestamps)
+            focus_class_dist = self._bimhm_class_dist(
+                focus_support,
+                focus_query,
+                support_labels,
+            )
+            focus_logits = -focus_class_dist
+            focus_weight = torch.sigmoid(self.focus_alpha)
+            logits = logits + focus_weight * (focus_logits - logits.detach())
+
+        return_dict = {'logits': logits, 'class_logits': class_logits}
         return return_dict

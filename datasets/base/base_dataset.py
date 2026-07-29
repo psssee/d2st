@@ -224,6 +224,212 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         file_to_remove = [tmp_file] if video_path[:3] == "oss" else [None]  # if not downloaded from oss, then no files need to be removed
         return vr, file_to_remove, success
 
+    def _keyframe_selection_enabled(self):
+        """Enable BDTS/keyframe selection only for explicit YAML boolean true."""
+        if self.split == "train":
+            value = getattr(self.cfg.TRAIN, "USE_KEYFRAME_SELECTION", False)
+        elif self.split == "val":
+            value = getattr(
+                getattr(self.cfg, "VAL", self.cfg.TRAIN),
+                "USE_KEYFRAME_SELECTION",
+                getattr(self.cfg.TRAIN, "USE_KEYFRAME_SELECTION", False),
+            )
+        elif self.split in ("test", "submission"):
+            value = getattr(
+                self.cfg.TEST,
+                "USE_KEYFRAME_SELECTION",
+                getattr(self.cfg.TRAIN, "USE_KEYFRAME_SELECTION", False),
+            )
+        else:
+            value = False
+        return value is True
+
+    def _should_use_cache_decode(self, use_keyframe=None):
+        if use_keyframe is None:
+            use_keyframe = self._keyframe_selection_enabled()
+        if not use_keyframe:
+            return False
+        if not hasattr(self.cfg, "FRAME_SELECTOR"):
+            return False
+        fs_cfg = self.cfg.FRAME_SELECTOR
+        if not getattr(fs_cfg, "ENABLE", False):
+            return False
+        if not getattr(fs_cfg, "ENABLE_CACHE_DECODE", False):
+            return False
+        if not getattr(fs_cfg, "FEAT_CACHE_DIR", ""):
+            return False
+        sampling_method = getattr(self.cfg.DATA, "SAMPLING_METHOD", "default")
+        return sampling_method in ("otam_learned", "otam_anchor_keyframe")
+
+    def _get_feat_cache_path(self, sample_info, index=None):
+        cache_dir = self.cfg.FRAME_SELECTOR.FEAT_CACHE_DIR
+        video_path = sample_info["path"].replace("\\", "/")
+        root = self.cfg.DATA.DATA_ROOT_DIR.replace("\\", "/").rstrip("/") + "/"
+
+        rel_path = video_path
+        if rel_path.startswith(root):
+            rel_path = rel_path[len(root):]
+        rel_path = rel_path.replace("//", "/")
+        rel_path = os.path.splitext(rel_path)[0]
+
+        candidates = []
+        rel_parts = [p for p in rel_path.split("/") if p]
+        splits_to_try = []
+        if hasattr(self, "split") and self.split:
+            splits_to_try.append(self.split)
+            if self.split == "test":
+                splits_to_try.append("val")
+            elif self.split == "val":
+                splits_to_try.append("test")
+        splits_to_try.append(None)
+
+        for split_name in splits_to_try:
+            if split_name is None:
+                candidates.append(os.path.join(cache_dir, *rel_parts) + ".pt")
+            else:
+                candidates.append(os.path.join(cache_dir, split_name, *rel_parts) + ".pt")
+
+        if index is not None:
+            for split_name in splits_to_try:
+                if split_name is None:
+                    candidates.append(os.path.join(cache_dir, f"{index:08d}.pt"))
+                else:
+                    candidates.append(os.path.join(cache_dir, split_name, f"{index:08d}.pt"))
+
+        for path in candidates:
+            if os.path.isfile(path):
+                return path
+        return candidates[0]
+
+    def _get_uniform_anchor_indices(self, total_frames, num_anchors):
+        total_frames = int(total_frames)
+        num_anchors = max(0, min(int(num_anchors), total_frames))
+        if num_anchors == 0:
+            return []
+
+        anchors = []
+        for i in range(num_anchors):
+            start = int(round(i * total_frames / num_anchors))
+            end = int(round((i + 1) * total_frames / num_anchors))
+            end = max(end, start + 1)
+            anchors.append(min(total_frames - 1, (start + end - 1) // 2))
+        return sorted(set(anchors))
+
+    def _select_otam_anchor_keyframe_indices(self, key_indices, total_frames, target_frames):
+        fs_cfg = self.cfg.FRAME_SELECTOR
+        total_frames = int(total_frames)
+        target_frames = int(target_frames)
+        num_anchors = int(getattr(fs_cfg, "NUM_ANCHOR_FRAMES", target_frames // 2))
+        num_keys = int(getattr(fs_cfg, "NUM_KEY_FRAMES", target_frames - num_anchors))
+        min_gap = int(getattr(fs_cfg, "MIN_FRAME_GAP", 2))
+
+        num_anchors = max(0, min(num_anchors, target_frames))
+        num_keys = max(0, min(num_keys, target_frames - num_anchors))
+        anchors = self._get_uniform_anchor_indices(total_frames, num_anchors)
+        selected = list(anchors)
+
+        clean_keys = []
+        for idx in key_indices:
+            idx = int(idx)
+            if 0 <= idx < total_frames and idx not in clean_keys:
+                clean_keys.append(idx)
+
+        for idx in clean_keys:
+            if len(selected) >= num_anchors + num_keys:
+                break
+            if idx in selected:
+                continue
+            if all(abs(idx - anchor) > min_gap for anchor in anchors):
+                selected.append(idx)
+
+        for idx in clean_keys:
+            if len(selected) >= target_frames:
+                break
+            if idx not in selected:
+                selected.append(idx)
+
+        if len(selected) < target_frames:
+            fallback = torch.linspace(0, max(total_frames - 1, 0), target_frames).long().tolist()
+            for idx in fallback:
+                idx = int(idx)
+                if idx not in selected:
+                    selected.append(idx)
+                if len(selected) >= target_frames:
+                    break
+
+        if len(selected) < target_frames:
+            for idx in range(total_frames):
+                if idx not in selected:
+                    selected.append(idx)
+                if len(selected) >= target_frames:
+                    break
+
+        selected = sorted(selected[:target_frames])
+        if len(selected) != target_frames:
+            raise RuntimeError(
+                f"[AnchorKeyframe] expected {target_frames} frames, got {len(selected)}"
+            )
+        return selected
+
+    def _decode_with_cache(self, vr, sample_info, total_video_frames, target_frames, index=None):
+        fs_cfg = self.cfg.FRAME_SELECTOR
+        total_frames_cfg = int(fs_cfg.TOTAL_FRAMES)
+        cache_path = self._get_feat_cache_path(sample_info, index=index)
+
+        if not os.path.isfile(cache_path):
+            policy = getattr(fs_cfg, "CACHE_MISMATCH_POLICY", "error")
+            if policy == "skip":
+                logger.warning(f"[CacheDecode] cache file not found, skip sample: {cache_path}")
+                return None
+            raise FileNotFoundError(
+                f"[CacheDecode] cache file not found: {cache_path}\n"
+                f"  video path: {sample_info['path']}\n"
+                f"  FEAT_CACHE_DIR: {fs_cfg.FEAT_CACHE_DIR}"
+            )
+
+        feat_32 = torch.load(cache_path, map_location="cpu").float()
+        if feat_32.dim() == 3 and feat_32.shape[0] == 1:
+            feat_32 = feat_32.squeeze(0)
+        if feat_32.shape[0] != total_frames_cfg:
+            raise RuntimeError(
+                f"[CacheDecode] expected {total_frames_cfg} cached frames, "
+                f"got shape={tuple(feat_32.shape)} from {cache_path}"
+            )
+
+        from utils.frame_sampler_cache import get_selected_indices
+        rel_indices = get_selected_indices(feat_32, self.cfg)
+
+        sampling_method = getattr(self.cfg.DATA, "SAMPLING_METHOD", "default")
+        if sampling_method == "otam_anchor_keyframe":
+            rel_indices = self._select_otam_anchor_keyframe_indices(
+                key_indices=rel_indices,
+                total_frames=total_frames_cfg,
+                target_frames=target_frames,
+            )
+        sample_info["rel_indices"] = rel_indices
+        sample_info["rel_total"] = total_frames_cfg
+
+        frame_indices_32 = torch.linspace(
+            0, total_video_frames - 1, total_frames_cfg
+        ).long().tolist()
+        real_frame_numbers = [frame_indices_32[i] for i in rel_indices]
+        real_frame_numbers = [
+            max(0, min(int(i), total_video_frames - 1)) for i in real_frame_numbers
+        ]
+
+        frames = dlpack.from_dlpack(vr.get_batch(real_frame_numbers).to_dlpack()).clone()
+
+        count = getattr(self, "_bdts_log_count", 0)
+        worker_info = torch.utils.data.get_worker_info()
+        worker_id = worker_info.id if worker_info else 0
+        if worker_id == 0 and count < 2:
+            logger.info(
+                f"[BDTS] {sampling_method}: {sample_info.get('path', '?')} "
+                f"rel={rel_indices}, real={real_frame_numbers}"
+            )
+            self._bdts_log_count = count + 1
+        return frames
+
     def _decode_video(self, sample_info, index, num_clips_per_video=1):
         """
         Decodes the video given the sample info.
@@ -254,6 +460,26 @@ class BaseVideoDataset(torch.utils.data.Dataset):
                 self.spatial_idx = 0
             else:
                 self.spatial_idx = self._spatial_temporal_index[index] % self.cfg.TEST.NUM_SPATIAL_CROPS
+
+        target_frames = self.cfg.DATA.NUM_INPUT_FRAMES
+        use_keyframe = self._keyframe_selection_enabled()
+        if self._should_use_cache_decode(use_keyframe):
+            cache_frames = self._decode_with_cache(
+                vr, sample_info, len(vr), target_frames, index=index
+            )
+            if cache_frames is None:
+                del vr
+                return None, file_to_remove, False
+            del vr
+            data = {"video": cache_frames}
+            if "rel_indices" in sample_info:
+                total = sample_info.get("rel_total", self.cfg.FRAME_SELECTOR.TOTAL_FRAMES)
+                if total > 1:
+                    ts = [i / (total - 1) for i in sample_info["rel_indices"]]
+                else:
+                    ts = [0.0 for _ in sample_info["rel_indices"]]
+                data["timestamps"] = torch.tensor(ts, dtype=torch.float32)
+            return data, file_to_remove, True
 
         frame_list = []
         for idx in range(num_clips_per_video):

@@ -216,7 +216,7 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         try:
             vr = None
             tmp_file = self._get_object_to_file(video_path, tmp_file, read_from_buffer=True, num_retries=1 if self.split == "train" else 20)
-            vr = VideoReader(tmp_file)
+            vr = VideoReader(tmp_file, num_threads=1)
             success = True
         except:
             success = False

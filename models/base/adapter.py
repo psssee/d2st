@@ -558,10 +558,16 @@ class ResidualAttentionBlock(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(cfg) for _ in range(cfg.ADAPTER.LAYERS)])
+        self.use_checkpoint = hasattr(cfg.TRAIN, "GRADIENT_CHECKPOINT") and cfg.TRAIN.GRADIENT_CHECKPOINT
+        self.resblocks = nn.ModuleList([ResidualAttentionBlock(cfg) for _ in range(cfg.ADAPTER.LAYERS)])
 
     def forward(self, x):
-        return self.resblocks(x)
+        for block in self.resblocks:
+            if self.use_checkpoint and self.training:
+                x = torch.utils.checkpoint.checkpoint(block, x)
+            else:
+                x = block(x)
+        return x
 
 
 @HEAD_REGISTRY.register()

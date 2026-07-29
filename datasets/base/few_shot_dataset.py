@@ -107,7 +107,7 @@ class Few_shot(BaseVideoDataset):
                     "supervised_label" indicating the class of the video 
         """
         class_ = self._samples[index]["label_idx"]
-        video_path = os.path.join(self.data_root_dir, self._samples[index]["id"] + ".mp4")
+        video_path = os.path.join(self.data_root_dir, self._samples[index]["id"] + getattr(self.cfg.DATA, "VIDEO_EXT", ".mp4"))
         sample_info = {
             "path": video_path,
             "supervised_label": class_,
@@ -206,9 +206,6 @@ class Few_shot(BaseVideoDataset):
 
                     for bl, bc in enumerate(batch_classes):
                         n_total = c.get_num_videos_for_class(bc)
-                        # retries = 5
-                        # for retry in range(retries):
-                        #     try:
                         idxs = random.sample([i for i in range(n_total)], self.cfg.SUPPORT_SHOT + n_queries)
 
                         for idx in idxs[0:self.cfg.SUPPORT_SHOT]:
@@ -220,7 +217,6 @@ class Few_shot(BaseVideoDataset):
                             support_labels.append(bl)
                             real_support_labels.append(bc)
 
-                        # try:
                         for idx in idxs[self.cfg.SUPPORT_SHOT:]:
                             if hasattr(self.cfg.AUGMENTATION, "SUPPORT_QUERY_DIFF") and self.cfg.AUGMENTATION.SUPPORT_QUERY_DIFF and self.split_dataset == "train":
                                 vid, vid_id = self.get_seq_query(bc, idx)
@@ -253,7 +249,6 @@ class Few_shot(BaseVideoDataset):
             target_labels = torch.FloatTensor(target_labels)
             real_target_labels = torch.FloatTensor(real_target_labels)  # shape: [25]
             real_support_labels = torch.FloatTensor(real_support_labels)
-            # [45., 59., 45., 11., 39., 39., 39., 11., 11., 25., 25., 25., 59., 45., 11., 25., 59., 25., 45., 39., 45., 59., 39., 59., 11.]
             batch_classes = torch.FloatTensor(batch_classes)  # [45., 11., 59., 25., 39.]
 
             return {"support_set": support_set, "support_labels": support_labels, "target_set": target_set, "target_labels": target_labels, "real_target_labels": real_target_labels, "batch_class_list": batch_classes, "real_support_labels": real_support_labels}
@@ -282,11 +277,18 @@ class Few_shot(BaseVideoDataset):
             if not success:
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
             if data["video"].numel() == 0:
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
+            if self.split in ["test"] and self.cfg.TEST.ZERO_SHOT:
+                if not hasattr(self, "label_embd"):
+                    self.label_embd = self.word_embd(self.words_to_ids(self.label_names))
+                data["text_embedding"] = self.label_embd
+
             if self.gpu_transform:
                 for k, v in data.items():
                     data[k] = v.cuda(non_blocking=True)
@@ -303,7 +305,8 @@ class Few_shot(BaseVideoDataset):
                     print("Error at Vid index: {}, Vid path: {}, Vid shape: {}".format(
                         index, sample_info["path"], data["video"].shape
                     ))
-                    return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                    dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                    return dummy, index
             else:
                 labels["self-supervised"] = {}
                 if "flow" in data.keys() and "video" in data.keys():
@@ -332,7 +335,7 @@ class Few_shot(BaseVideoDataset):
         if self.cfg.TRAIN.META_BATCH:
             paths, vid_id = c.get_rand_vid(label, idx)
             if 'SSv2' in self.dataset_name:
-                video_path = os.path.join(self.data_root_dir, paths + ".mp4")
+                video_path = os.path.join(self.data_root_dir, paths + getattr(self.cfg.DATA, "VIDEO_EXT", ".mp4"))
             else:
                 video_path = os.path.join(self.data_root_dir, paths)
             sample_info = {
@@ -357,23 +360,19 @@ class Few_shot(BaseVideoDataset):
             if not success:
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
             if data["video"].numel() == 0:
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
-            # if self.split in ["test"] and self.cfg.TEST.ZERO_SHOT:
-            #     if not hasattr(self, "label_embd"):
-            #         self.label_embd = self.word_embd(self.words_to_ids(self.label_names))
-            #     data["text_embedding"] = self.label_embd
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
 
             if self.gpu_transform:
                 for k, v in data.items():
                     data[k] = v.cuda(non_blocking=True)
             if self._pre_transformation_config_required:
                 self._pre_transformation_config()
-
-            # self.visualize_frames(data["video"], index)
 
             labels = {}
             labels["supervised"] = sample_info["supervised_label"] if "supervised_label" in sample_info.keys() else {}
@@ -385,7 +384,8 @@ class Few_shot(BaseVideoDataset):
                     print("Error at Vid index: {}, Vid path: {}, Vid shape: {}".format(
                         index, sample_info["path"], data["video"].shape
                     ))
-                    return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                    dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                    return dummy, index
             else:
                 labels["self-supervised"] = {}
                 if "flow" in data.keys() and "video" in data.keys():
@@ -407,16 +407,13 @@ class Few_shot(BaseVideoDataset):
         c = self.split_few_shot
         if self.cfg.TRAIN.META_BATCH:
             paths, vid_id = c.get_rand_vid(label, idx)
-            # imgs = self.load_and_transform_paths(paths)
             if 'SSv2' in self.dataset_name:
-                video_path = os.path.join(self.data_root_dir, paths + ".mp4")
+                video_path = os.path.join(self.data_root_dir, paths + getattr(self.cfg.DATA, "VIDEO_EXT", ".mp4"))
             else:
                 video_path = os.path.join(self.data_root_dir, paths)
             sample_info = {
                 "path": video_path,
-                # "supervised_label": class_,
             }
-            # sample_info = self._get_sample_info(index)
             index = vid_id
             retries = 5 if self.split == "train" else 10
             for retry in range(retries):
@@ -436,19 +433,19 @@ class Few_shot(BaseVideoDataset):
             if not success:
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
             if data["video"].numel() == 0:
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                return dummy, index
 
             if self.gpu_transform:
                 for k, v in data.items():
                     data[k] = v.cuda(non_blocking=True)
             if self._pre_transformation_config_required:
                 self._pre_transformation_config()
-
-            # self.visualize_frames(data["video"], index)
 
             labels = {}
             labels["supervised"] = sample_info["supervised_label"] if "supervised_label" in sample_info.keys() else {}
@@ -460,7 +457,8 @@ class Few_shot(BaseVideoDataset):
                     print("Error at Vid index: {}, Vid path: {}, Vid shape: {}".format(
                         index, sample_info["path"], data["video"].shape
                     ))
-                    return self.__getitem__(index - 1) if index != 0 else self.__getitem__(index + 1)
+                    dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
+                    return dummy, index
             else:
                 labels["self-supervised"] = {}
                 if "flow" in data.keys() and "video" in data.keys():

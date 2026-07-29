@@ -343,7 +343,9 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         sample_info = self._get_sample_info(index)
 
         # decode the data
-        retries = 1 if self.split == "train" else 10
+        # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
+        is_oss = sample_info["path"][:3] == "oss"
+        retries = (1 if self.split == "train" else 10) if is_oss else 1
         for retry in range(retries):
             try:
                 data, file_to_remove, success = self.decode(

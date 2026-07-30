@@ -199,7 +199,7 @@ def train_few_shot(cfg):
 
     # freeze some parameters
     for name, param in model.named_parameters():
-        if 'class_embedding' not in name and 'temporal_embedding' not in name and 'Adapter' not in name and 'ln_post' not in name and 'classification_layer' not in name:
+        if 'class_embedding' not in name and 'temporal_embedding' not in name and 'Adapter' not in name and 'ln_post' not in name and 'classification_layer' not in name and 'focus_branch' not in name and 'focus_alpha' not in name:
             param.requires_grad = False
 
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:

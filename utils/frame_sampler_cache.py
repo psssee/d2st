@@ -19,6 +19,10 @@ def _emit_info(message):
         sys.stderr.flush()
 
 
+def _use_cuda_selector(fs_cfg):
+    return bool(getattr(fs_cfg, "USE_CUDA", False)) and torch.cuda.is_available()
+
+
 def get_frame_selector(cfg):
     global _frame_selector_singleton
     if _frame_selector_singleton is not None:
@@ -56,11 +60,11 @@ def get_frame_selector(cfg):
     for param in selector.parameters():
         param.requires_grad = False
 
-    if torch.cuda.is_available():
+    if _use_cuda_selector(fs_cfg):
         selector = selector.cuda().half()
         _emit_info("[FrameSamplerCache] Moved to CUDA, FP16")
     else:
-        _emit_info("[FrameSamplerCache] CUDA not available, using CPU FP32")
+        _emit_info("[FrameSamplerCache] Using CPU FP32")
 
     _frame_selector_singleton = selector
     _emit_info(

@@ -1,0 +1,89 @@
+# ============================================================================
+# Bi-MHM Frame Selector pretraining for D2ST-style matching
+#
+# The selector architecture is segment-wise top-k and remains checkpoint
+# compatible with the existing D2ST cached decoder.  Only the training signal
+# changes from OTAM triplet to D2ST's bidirectional minimum matching.
+#
+# Prepare the cache first:
+#   python tools/extract_fs_features.py \
+#     --cfg config/frame_selector/ssv2_bimhm_cache.yaml \
+#     --splits train,val
+#
+# Then train:
+#   python runs/train_frame_selector.py \
+#     --cfg config/frame_selector/ssv2_bimhm_train.yaml
+# ============================================================================
+
+OUTPUT_DIR: output/frame_selector/ssv2_ViT-B16_BiMHM
+
+FRAME_SELECTOR:
+  ENABLE: true
+  TYPE: bimhm
+  BACKBONE_NAME: "ViT-B/16"
+  TOTAL_FRAMES: 32
+  SELECT_FRAMES: 8
+  SEGMENTS: 4
+  FEAT_DIM: 0
+  STE_TAU: 0.5
+
+LOSS:
+  # bimhm_triplet = direct replacement for the old OTAM triplet objective.
+  # bimhm_class_ce = D2ST-style class-prototype CE.
+  # bimhm_match_aware = triplet + frame-level same-class matchability supervision.
+  # bimhm_combined = triplet + class CE + matchability supervision.
+  NAME: bimhm_match_aware
+  MARGIN: 0.3
+  TEMPERATURE: 1.0
+  TRIPLET_WEIGHT: 1.0
+  CLASS_CE_WEIGHT: 1.0
+  MATCH_WEIGHT: 0.5
+  MATCH_NORMALIZE_TARGETS: true
+  NORMALIZE_BY_FRAMES: false
+
+  # Avoid batches without positive pairs.  4脳2 gives batch size 8.
+  CLASS_BALANCED_BATCH: true
+  CLASSES_PER_BATCH: 4
+  SAMPLES_PER_CLASS: 2
+
+  # These are only used by the legacy OTAM objective.
+  INDEX_COMPACT_WEIGHT: 0.0
+  SCORE_MARGIN_WEIGHT: 0.0
+
+DATA:
+  DATA_ROOT_DIR: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/
+  ANNO_DIR: ./config/ssv2_full/
+  TRAIN_LIST: train_few_shot.txt
+  VAL_LIST: val_few_shot.txt
+  FILE_EXTENSION: ".webm"
+
+  BATCH_SIZE: 8
+  VAL_BATCH_SIZE: 8
+  NUM_WORKERS: 4
+  TRAIN_CROP_SIZE: 224
+  TRAIN_JITTER_SCALES: [256, 256]
+  USE_AUG: false
+  MEAN: [0.48145466, 0.4578275, 0.40821073]
+  STD: [0.26862954, 0.26130258, 0.27577711]
+
+  FEAT_CACHE:
+    ENABLE: true
+    CACHE_DIR: data/feat_cache/ssv2
+    AUTO_REBUILD: false
+
+SOLVER:
+  BASE_LR: 0.001
+  OPTIM_METHOD: adamw
+  MAX_EPOCH: 30
+  WEIGHT_DECAY: 1e-4
+  WARMUP_EPOCHS: 3
+  LR_POLICY: cosine
+
+LOG_PERIOD: 50
+SAVE_PERIOD: 5
+NUM_GPUS: 1
+
+
+
+
+

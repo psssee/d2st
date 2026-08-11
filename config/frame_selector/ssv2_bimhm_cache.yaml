@@ -1,0 +1,45 @@
+﻿# ============================================================================
+# CLIP feature cache extraction config for D2ST SSv2-Full experiments.
+#
+# Use this with:
+#   python tools/extract_fs_features.py \
+#     --cfg config/frame_selector/ssv2_bimhm_cache.yaml \
+#     --splits train,test
+#
+# The D2ST few-shot test loader uses config/ssv2_full/test_few_shot.txt, so the
+# cache must contain a "test/" split.  The annotation files here use D2ST SSv2 lists such as train8//78687;`r`n# fs_dataset.py appends FILE_EXTENSION when the video id has no extension.
+# ============================================================================
+
+OUTPUT_DIR: output/frame_selector/ssv2_bimhm_cache
+
+FRAME_SELECTOR:
+  ENABLE: true
+  BACKBONE_NAME: "ViT-B/16"
+  TOTAL_FRAMES: 32
+  SELECT_FRAMES: 8
+  SEGMENTS: 4
+  FEAT_DIM: 0
+
+DATA:
+  DATA_ROOT_DIR: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/
+  ANNO_DIR: ./config/ssv2_full/
+  TRAIN_LIST: train_few_shot.txt
+  VAL_LIST: val_few_shot.txt
+  TEST_LIST: test_few_shot.txt
+  FILE_EXTENSION: ".webm"
+  BATCH_SIZE: 8
+  VAL_BATCH_SIZE: 8
+  NUM_WORKERS: 4
+  TRAIN_CROP_SIZE: 224
+  TRAIN_JITTER_SCALES: [256, 256]
+  USE_AUG: false
+  MEAN: [0.48145466, 0.4578275, 0.40821073]
+  STD: [0.26862954, 0.26130258, 0.27577711]
+  FEAT_CACHE:
+    CACHE_DIR: data/feat_cache/ssv2
+
+LOG_PERIOD: 50
+SAVE_PERIOD: 5
+NUM_GPUS: 1
+
+

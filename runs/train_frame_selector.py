@@ -41,7 +41,10 @@ import time
 import datetime
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ModuleNotFoundError:
+    SummaryWriter = None
 
 sys.path.append(os.path.abspath(os.curdir))
 
@@ -108,6 +111,16 @@ def parse_args():
     parser.add_argument("--cfg", dest="cfg_file", required=True)
     parser.add_argument("opts", nargs=argparse.REMAINDER)
     return parser.parse_args()
+
+
+class _NoOpSummaryWriter:
+    """Fallback writer used when tensorboard is not installed."""
+
+    def add_scalar(self, *args, **kwargs):
+        pass
+
+    def close(self):
+        pass
 
 
 class AverageMeter:
@@ -236,7 +249,11 @@ def train():
     )
 
     # ── TensorBoard ────────────────────────────────────────────────
-    writer = SummaryWriter(log_dir=os.path.join(output_dir, "tb_logs"))
+    if SummaryWriter is None:
+        logger.warning("tensorboard is not installed; TensorBoard logging is disabled.")
+        writer = _NoOpSummaryWriter()
+    else:
+        writer = SummaryWriter(log_dir=os.path.join(output_dir, "tb_logs"))
 
     log_period = getattr(cfg, "LOG_PERIOD", 50)
     best_val_loss = float("inf")

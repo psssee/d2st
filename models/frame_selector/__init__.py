@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # Copyright (C) Alibaba Group Holding Limited.
 
 """Frame selector package for learnable frame selection."""
@@ -14,6 +14,12 @@ from .bimhm_frame_selector import (
     bimhm_distance,
     bimhm_loss,
 )
+from .pairwise_diverse_frame_selector import (
+    PAIRWISE_DIVERSE_TYPES,
+    PairwiseDiverseFrameSelector,
+    pairwise_diverse_bimhm_loss,
+    ste_select_features_pairwise_diverse,
+)
 
 __all__ = [
     "OTAMFrameSelector",
@@ -23,4 +29,10 @@ __all__ = [
     "BiMHMFrameSelector",
     "bimhm_distance",
     "bimhm_loss",
+    "PAIRWISE_DIVERSE_TYPES",
+    "PairwiseDiverseFrameSelector",
+    "pairwise_diverse_bimhm_loss",
+    "ste_select_features_pairwise_diverse",
 ]
+
+

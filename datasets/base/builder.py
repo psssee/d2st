@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # Copyright (C) Alibaba Group Holding Limited. 
 # -----------------------------------------------
 # Modified by Qizhong Tan
@@ -58,7 +58,11 @@ def _uses_cuda_frame_selector_in_loader(cfg, split):
         return False
 
     sampling_method = getattr(cfg.DATA, "SAMPLING_METHOD", "default")
-    if sampling_method not in ("otam_learned", "otam_anchor_keyframe"):
+    if sampling_method not in (
+        "otam_learned", "otam_anchor_keyframe",
+        "bimhm_learned", "bimhm_anchor_keyframe",
+        "pairwise_diverse_bimhm",
+    ):
         return False
     return torch.cuda.is_available()
 
@@ -120,3 +124,5 @@ def shuffle_dataset(loader, cur_epoch):
 
 def build_dataset(cfg, split):
     return Few_shot(cfg, split)
+
+

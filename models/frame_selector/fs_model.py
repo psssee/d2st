@@ -28,6 +28,10 @@ from models.frame_selector.otam_frame_selector import (
     get_feat_dim_from_backbone,
 )
 from models.frame_selector.bimhm_frame_selector import BiMHMFrameSelector
+from models.frame_selector.pairwise_diverse_frame_selector import (
+    PAIRWISE_DIVERSE_TYPES,
+    PairwiseDiverseFrameSelector,
+)
 import clip
 
 
@@ -58,16 +62,25 @@ class FrameSelectorModel(nn.Module):
 
         # 鈹€鈹€ Frame Selector (trainable, FP32) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         selector_type = str(getattr(fs_cfg, "TYPE", "otam")).lower()
-        selector_cls = (
-            BiMHMFrameSelector
-            if selector_type in {"bimhm", "bi_mhm", "d2st_bimhm"}
-            else OTAMFrameSelector
-        )
+        if selector_type in PAIRWISE_DIVERSE_TYPES:
+            selector_cls = PairwiseDiverseFrameSelector
+            selector_kwargs = {
+                "coverage_weight": float(getattr(fs_cfg, "COVERAGE_WEIGHT", 0.35)),
+                "boundary_weight": float(getattr(fs_cfg, "BOUNDARY_WEIGHT", 0.05)),
+            }
+        elif selector_type in {"bimhm", "bi_mhm", "d2st_bimhm"}:
+            selector_cls = BiMHMFrameSelector
+            selector_kwargs = {}
+        else:
+            selector_cls = OTAMFrameSelector
+            selector_kwargs = {}
+
         self.selector = selector_cls(
             feat_dim=feat_dim,
             total_frames=self.total_frames,
             select_frames=self.select_frames,
             segments=fs_cfg.SEGMENTS,
+            **selector_kwargs,
         )
         print(f"[FrameSelectorModel] Selector type={selector_type}: "
               f"T={self.total_frames}鈫扠={self.select_frames}, "
@@ -137,4 +150,6 @@ class FrameSelectorModel(nn.Module):
             all_feats, return_scores=True
         )
         return selected_feats, indices, scores, all_feats
+
+
 

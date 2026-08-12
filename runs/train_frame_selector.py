@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # Copyright (C) Alibaba Group Holding Limited.
 
 """
@@ -7,31 +7,31 @@ OTAM-driven Frame Selector pretraining script.
 Trains OTAMFrameSelector using OTAM optimal transport distance as the
 core training signal with Straight-Through Estimator (STE).
 
-🔧 特征缓存: 支持 FEAT_CACHE.ENABLE 配置开关。
-   开启后数据集直接加载预提取的 CLIP 特征张量，
-   模型调用 forward_from_feats() 跳过 CLIP 主干推理，
-   训练速度提升 10× 以上。
+馃敡 鐗瑰緛缂撳瓨: 鏀寔 FEAT_CACHE.ENABLE 閰嶇疆寮€鍏炽€?
+   寮€鍚悗鏁版嵁闆嗙洿鎺ュ姞杞介鎻愬彇鐨?CLIP 鐗瑰緛寮犻噺锛?
+   妯″瀷璋冪敤 forward_from_feats() 璺宠繃 CLIP 涓诲共鎺ㄧ悊锛?
+   璁粌閫熷害鎻愬崌 10脳 浠ヤ笂銆?
 
 Architecture:
     Video (B,T,3,H,W)
       -> CLIP (frozen, eval, FP16) -> (B*T, D)
       -> score_net -> scores -> per-segment STE -> selected (B, K, D)
-      -> OTAM triplet loss (可微分，唯一核心损失) -> train score_net
+      -> OTAM triplet loss (鍙井鍒嗭紝鍞竴鏍稿績鎹熷け) -> train score_net
 
-    🔧 缓存模式:
+    馃敡 缂撳瓨妯″紡:
       Pre-extracted feats (B,T,D)
       -> score_net -> scores -> per-segment STE -> selected (B, K, D)
-      -> OTAM triplet loss (可微分，唯一核心损失) -> train score_net
+      -> OTAM triplet loss (鍙井鍒嗭紝鍞竴鏍稿績鎹熷け) -> train score_net
 
 Usage:
-    # 在线模式（默认）
+    # 鍦ㄧ嚎妯″紡锛堥粯璁わ級
     CUDA_VISIBLE_DEVICES=0 python runs/train_frame_selector.py \
         --cfg configs/projects/FRAMESELECTOR/ssv2_fs_train.yaml
 
-    # 缓存模式（先提取特征）
+    # 缂撳瓨妯″紡锛堝厛鎻愬彇鐗瑰緛锛?
     python tools/extract_fs_features.py \
         --cfg configs/projects/FRAMESELECTOR/ssv2_fs_train.yaml
-    # 然后设置 FEAT_CACHE.ENABLE: true 再运行训练
+    # 鐒跺悗璁剧疆 FEAT_CACHE.ENABLE: true 鍐嶈繍琛岃缁?
 """
 
 import os
@@ -52,6 +52,11 @@ from models.frame_selector.fs_dataset import build_fs_dataloader, _feat_cache_cf
 from models.frame_selector.fs_model import FrameSelectorModel
 from models.frame_selector.otam_frame_selector import otam_triplet_loss, ste_select_features
 from models.frame_selector.bimhm_frame_selector import bimhm_loss
+from models.frame_selector.pairwise_diverse_frame_selector import (
+    PAIRWISE_DIVERSE_TYPES,
+    pairwise_diverse_bimhm_loss,
+    ste_select_features_pairwise_diverse,
+)
 from utils.config import Config
 import utils.logging as logging
 import utils.misc as misc
@@ -63,6 +68,35 @@ def _compute_selector_loss(selected_feats, labels, frame_scores, hard_indices,
                            all_feats, cfg, margin, index_weight, score_margin_weight):
     """Dispatch the configured selector loss without changing old OTAM mode."""
     loss_name = str(getattr(cfg.LOSS, "NAME", "otam_triplet")).lower()
+    if loss_name in {"pairwise_diverse", "pairwise_diverse_bimhm", "diverse_bimhm",
+                     "d2st_pairwise_diverse"}:
+        mode = str(getattr(cfg.LOSS, "BIMHM_MODE", "match_aware")).lower()
+        return pairwise_diverse_bimhm_loss(
+            selected_feats=selected_feats,
+            labels=labels,
+            frame_scores=frame_scores,
+            all_feats=all_feats,
+            margin=margin,
+            temperature=float(getattr(cfg.LOSS, "TEMPERATURE", 1.0)),
+            mode=mode,
+            triplet_weight=float(getattr(cfg.LOSS, "TRIPLET_WEIGHT", 1.0)),
+            class_ce_weight=float(getattr(cfg.LOSS, "CLASS_CE_WEIGHT", 1.0)),
+            match_weight=float(getattr(cfg.LOSS, "MATCH_WEIGHT", 0.5)),
+            match_normalize_targets=bool(
+                getattr(cfg.LOSS, "MATCH_NORMALIZE_TARGETS", True)
+            ),
+            normalize_by_frames=bool(
+                getattr(cfg.LOSS, "NORMALIZE_BY_FRAMES", False)
+            ),
+            diversity_weight=float(getattr(cfg.LOSS, "DIVERSITY_WEIGHT", 0.15)),
+            coverage_recon_weight=float(
+                getattr(cfg.LOSS, "COVERAGE_RECON_WEIGHT", 0.10)
+            ),
+            diversity_threshold=float(
+                getattr(cfg.LOSS, "DIVERSITY_THRESHOLD", 0.55)
+            ),
+        )
+
     if loss_name in {"bimhm", "bimhm_triplet", "bimhm_class_ce",
                      "bimhm_match_aware", "bimhm_combined"}:
         if loss_name == "bimhm_class_ce":
@@ -202,24 +236,24 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() and getattr(cfg, "NUM_GPUS", 1) > 0 else "cpu")
     logger.info(f"Device: {device}")
 
-    # ── 缓存状态 ────────────────────────────────────────────────────
-    # 🔧 特征缓存：读取配置开关，打印状态
+    # 鈹€鈹€ 缂撳瓨鐘舵€?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    # 馃敡 鐗瑰緛缂撳瓨锛氳鍙栭厤缃紑鍏筹紝鎵撳嵃鐘舵€?
     cache_info = _feat_cache_cfg(cfg)
     use_cache = cache_info["ENABLE"]
     if use_cache:
         cache_tag = _cache_tag(cfg)
-        logger.info(f"🔧 特征缓存已开启: tag={cache_tag}, dir={cache_info['CACHE_DIR']}")
+        logger.info(f"馃敡 鐗瑰緛缂撳瓨宸插紑鍚? tag={cache_tag}, dir={cache_info['CACHE_DIR']}")
     else:
-        logger.info("🔧 特征缓存已关闭（默认），使用在线视频解码 + CLIP")
+        logger.info("馃敡 鐗瑰緛缂撳瓨宸插叧闂紙榛樿锛夛紝浣跨敤鍦ㄧ嚎瑙嗛瑙ｇ爜 + CLIP")
 
-    # ── Data ────────────────────────────────────────────────────────
+    # 鈹€鈹€ Data 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     logger.info("Loading data...")
     train_loader = build_fs_dataloader(cfg, "train")
     has_val = hasattr(cfg.DATA, "VAL_LIST") and cfg.DATA.VAL_LIST
     val_loader = build_fs_dataloader(cfg, "val") if has_val else None
     logger.info(f"Train: {len(train_loader.dataset)} samples, {len(train_loader)} iters/epoch")
 
-    # ── Model ───────────────────────────────────────────────────────
+    # 鈹€鈹€ Model 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     model = FrameSelectorModel(cfg).to(device)
     # CRITICAL: CLIP backbone must stay in eval mode
     model.eval()
@@ -227,7 +261,7 @@ def train():
     total_params = sum(p.numel() for p in model.selector.parameters())
     logger.info(f"Trainable (selector) params: {total_params:,}")
 
-    # ── Optimizer ────────────────────────────────────────────────────
+    # 鈹€鈹€ Optimizer 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     optim_cfg = cfg.SOLVER
     optimizer = torch.optim.AdamW(model.selector.parameters(), lr=optim_cfg.BASE_LR,
                                   weight_decay=optim_cfg.WEIGHT_DECAY)
@@ -236,7 +270,7 @@ def train():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epoch - warmup_epochs) \
         if getattr(optim_cfg, "LR_POLICY", "cosine") == "cosine" else None
 
-    # ── Loss config ─────────────────────────────────────────────────
+    # 鈹€鈹€ Loss config 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     loss_name = str(getattr(cfg.LOSS, "NAME", "otam_triplet")).lower()
     margin = getattr(cfg.LOSS, "MARGIN", 0.3)
     index_weight = getattr(cfg.LOSS, "INDEX_COMPACT_WEIGHT", 0.05)
@@ -248,7 +282,7 @@ def train():
         f"index_compact_weight={index_weight}, STE_tau={ste_tau}"
     )
 
-    # ── TensorBoard ────────────────────────────────────────────────
+    # 鈹€鈹€ TensorBoard 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     if SummaryWriter is None:
         logger.warning("tensorboard is not installed; TensorBoard logging is disabled.")
         writer = _NoOpSummaryWriter()
@@ -286,20 +320,25 @@ def train():
             labels = labels.to(device, non_blocking=True)
             B = labels.shape[0]
 
-            # ── Forward ────────────────────────────────────────────
-            # 🔧 特征缓存：data.dim()==5 → 原始视频，用 model.forward()
-            #            data.dim()==3 → 缓存特征，用 model.forward_from_feats()
+            # 鈹€鈹€ Forward 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+            # 馃敡 鐗瑰緛缂撳瓨锛歞ata.dim()==5 鈫?鍘熷瑙嗛锛岀敤 model.forward()
+            #            data.dim()==3 鈫?缂撳瓨鐗瑰緛锛岀敤 model.forward_from_feats()
             if data.dim() == 5:
                 data = data.to(device, non_blocking=True)
                 _, _, frame_scores, all_feats = model(data)
             else:
                 all_feats = data.to(device, non_blocking=True)  # (B,T,D)
-                # 🔧 特征缓存：直接调用 forward_from_feats 跳过 CLIP
+                # 馃敡 鐗瑰緛缂撳瓨锛氱洿鎺ヨ皟鐢?forward_from_feats 璺宠繃 CLIP
                 _, _, frame_scores, all_feats = model.forward_from_feats(all_feats)
 
-            # ── STE selection + configured selector loss ───────────
-            ste_feats, hard_indices = ste_select_features(
-                model.selector, frame_scores, all_feats, tau=ste_tau)
+            # 鈹€鈹€ STE selection + configured selector loss 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+            selector_type = str(getattr(cfg.FRAME_SELECTOR, "TYPE", "otam")).lower()
+            if selector_type in PAIRWISE_DIVERSE_TYPES:
+                ste_feats, hard_indices = ste_select_features_pairwise_diverse(
+                    model.selector, frame_scores, all_feats, tau=ste_tau)
+            else:
+                ste_feats, hard_indices = ste_select_features(
+                    model.selector, frame_scores, all_feats, tau=ste_tau)
 
             loss_dict = _compute_selector_loss(
                 selected_feats=ste_feats, labels=labels,
@@ -312,36 +351,44 @@ def train():
                 score_margin_weight=score_margin_weight,
             )
             total_key = (
-                "loss_bimhm_total"
-                if "loss_bimhm_total" in loss_dict
-                else "loss_otam_total"
+                "loss_pairwise_bimhm_total"
+                if "loss_pairwise_bimhm_total" in loss_dict
+                else (
+                    "loss_bimhm_total"
+                    if "loss_bimhm_total" in loss_dict
+                    else "loss_otam_total"
+                )
             )
             loss = loss_dict[total_key]
 
-            # ── Backward ──────────────────────────────────────────
+            # 鈹€鈹€ Backward 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
             optimizer.zero_grad()
             loss.backward()
 
-            # ✅ 梯度自检：首个 iteration
+            # 鉁?姊害鑷锛氶涓?iteration
             if epoch == 0 and batch_idx == 0:
                 _first_layer = model.selector.score_net[0]
                 _grad = _first_layer.weight.grad
                 if _grad is None:
                     logger.warning(
-                        "⚠️ OTAM 梯度自检: score_net[0].weight.grad = None\n"
-                        "   可能 batch 内无同类样本，属正常跳过。"
+                        "Frame selector gradient check: score_net[0].weight.grad is None. "
+                        "This can happen when the batch has no valid positive pairs."
                     )
                 else:
                     _gn = _grad.norm().item()
                     if _gn < 1e-6:
-                        logger.warning(f"⚠️ OTAM 梯度异常小: grad.norm()={_gn:.8f}")
+                        logger.warning(
+                            f"Frame selector gradient check: very small grad.norm()={_gn:.8f}"
+                        )
                     else:
-                        logger.info(f"✅ OTAM 梯度自检通过: grad.norm()={_gn:.6f}")
+                        logger.info(
+                            f"Frame selector gradient check passed: grad.norm()={_gn:.6f}"
+                        )
 
             nn.utils.clip_grad_norm_(model.selector.parameters(), max_norm=5.0)
             optimizer.step()
 
-            # ── Update meters ─────────────────────────────────────
+            # 鈹€鈹€ Update meters 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
             lr_now = optimizer.param_groups[0]["lr"]
             epoch_loss.update(loss.item(), B)
             triplet_value = loss_dict.get(
@@ -360,7 +407,7 @@ def train():
             epoch_pos.update(pos_value.item(), B)
             epoch_neg.update(neg_value.item(), B)
 
-            # ── Log ───────────────────────────────────────────────
+            # 鈹€鈹€ Log 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
             if batch_idx % log_period == 0:
                 elapsed = time.time() - train_timer
                 done = epoch * len(train_loader) + batch_idx + 1
@@ -379,7 +426,7 @@ def train():
 
             global_step += 1
 
-        # ── Save epoch checkpoint ──────────────────────────────────
+        # 鈹€鈹€ Save epoch checkpoint 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         save_checkpoint(cfg, model, optimizer, epoch, epoch_loss.avg, is_best=False)
 
         log_epoch_stats(epoch, max_epoch,
@@ -389,14 +436,14 @@ def train():
         writer.add_scalar("train/epoch_loss", epoch_loss.avg, epoch)
         writer.add_scalar("train/epoch_triplet", epoch_trip.avg, epoch)
 
-        # ── Validation ────────────────────────────────────────────
+        # 鈹€鈹€ Validation 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         if val_loader:
             model.eval()
             val_loss = AverageMeter()
             with torch.no_grad():
                 for data, labels in val_loader:
                     labels = labels.to(device, non_blocking=True)
-                    # 🔧 特征缓存：兼容两种输入模式
+                    # 馃敡 鐗瑰緛缂撳瓨锛氬吋瀹逛袱绉嶈緭鍏ユā寮?
                     if data.dim() == 5:
                         data = data.to(device, non_blocking=True)
                         sf, _, val_frame_scores, val_all_feats = model(data)
@@ -415,9 +462,13 @@ def train():
                         score_margin_weight=0.0,
                     )
                     val_key = (
-                        "loss_bimhm_total"
-                        if "loss_bimhm_total" in vd
-                        else "loss_otam_total"
+                        "loss_pairwise_bimhm_total"
+                        if "loss_pairwise_bimhm_total" in vd
+                        else (
+                            "loss_bimhm_total"
+                            if "loss_bimhm_total" in vd
+                            else "loss_otam_total"
+                        )
                     )
                     val_loss.update(vd[val_key].item(), data.shape[0])
 
@@ -435,7 +486,7 @@ def train():
 
         writer.add_scalar("train/best_val_loss", best_val_loss, epoch)
 
-    # ── Done ──────────────────────────────────────────────────────
+    # 鈹€鈹€ Done 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     total_time = time.time() - train_timer
     writer.close()
     logger.info("=" * 80)
@@ -447,5 +498,9 @@ def train():
 
 if __name__ == "__main__":
     train()
+
+
+
+
 
 

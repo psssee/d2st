@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # Copyright (C) Alibaba Group Holding Limited. 
 # -----------------------------------------------
 # Modified by Qizhong Tan
@@ -259,7 +259,11 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         if not getattr(fs_cfg, "FEAT_CACHE_DIR", ""):
             return False
         sampling_method = getattr(self.cfg.DATA, "SAMPLING_METHOD", "default")
-        return sampling_method in ("otam_learned", "otam_anchor_keyframe")
+        return sampling_method in (
+            "otam_learned", "otam_anchor_keyframe",
+            "bimhm_learned", "bimhm_anchor_keyframe",
+            "pairwise_diverse_bimhm",
+        )
 
     def _get_feat_cache_path(self, sample_info, index=None):
         cache_dir = self.cfg.FRAME_SELECTOR.FEAT_CACHE_DIR
@@ -400,7 +404,7 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         rel_indices = get_selected_indices(feat_32, self.cfg)
 
         sampling_method = getattr(self.cfg.DATA, "SAMPLING_METHOD", "default")
-        if sampling_method == "otam_anchor_keyframe":
+        if sampling_method in ("otam_anchor_keyframe", "bimhm_anchor_keyframe"):
             rel_indices = self._select_otam_anchor_keyframe_indices(
                 key_indices=rel_indices,
                 total_frames=total_frames_cfg,
@@ -767,3 +771,5 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         index = torch.round(torch.clamp(index, 0, vid_length - 1)).long()
 
         return index
+
+

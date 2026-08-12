@@ -1,0 +1,75 @@
+# ============================================================================
+# Phase-offset Bi-MHM Frame Selector pretraining for D2ST
+#
+# Uniform phase skeleton + local learnable offset. This keeps the selector
+# lightweight while allowing each of the 8 phase slots to move to a nearby
+# discriminative frame under Bi-MHM supervision.
+# ============================================================================
+
+OUTPUT_DIR: output/frame_selector/ssv2_ViT-B16_PhaseOffset_BiMHM
+
+FRAME_SELECTOR:
+  ENABLE: true
+  TYPE: phase_offset_bimhm
+  BACKBONE_NAME: "ViT-B/16"
+  TOTAL_FRAMES: 32
+  SELECT_FRAMES: 8
+  SEGMENTS: 8
+  FEAT_DIM: 0
+  STE_TAU: 0.7
+  WINDOW_SIZE: 4
+  OFFSET_RANGE: 2
+  CENTER_BIAS: 0.05
+
+LOSS:
+  NAME: phase_offset_bimhm
+  BIMHM_MODE: triplet
+  MARGIN: 0.3
+  TEMPERATURE: 1.0
+  TRIPLET_WEIGHT: 1.0
+  CLASS_CE_WEIGHT: 1.0
+  MATCH_WEIGHT: 0.0
+  MATCH_NORMALIZE_TARGETS: true
+  NORMALIZE_BY_FRAMES: false
+  COVERAGE_RECON_WEIGHT: 0.05
+
+  CLASS_BALANCED_BATCH: true
+  CLASSES_PER_BATCH: 3
+  SAMPLES_PER_CLASS: 3
+
+  INDEX_COMPACT_WEIGHT: 0.0
+  SCORE_MARGIN_WEIGHT: 0.0
+
+DATA:
+  DATA_ROOT_DIR: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/
+  ANNO_DIR: ./config/ssv2_full/
+  TRAIN_LIST: train_few_shot.txt
+  VAL_LIST: val_few_shot.txt
+  TEST_LIST: test_few_shot.txt
+  FILE_EXTENSION: ".webm"
+
+  BATCH_SIZE: 9
+  VAL_BATCH_SIZE: 9
+  NUM_WORKERS: 4
+  TRAIN_CROP_SIZE: 224
+  TRAIN_JITTER_SCALES: [256, 256]
+  USE_AUG: false
+  MEAN: [0.48145466, 0.4578275, 0.40821073]
+  STD: [0.26862954, 0.26130258, 0.27577711]
+
+  FEAT_CACHE:
+    ENABLE: true
+    CACHE_DIR: data/feat_cache/ssv2
+    AUTO_REBUILD: false
+
+SOLVER:
+  BASE_LR: 0.0003
+  OPTIM_METHOD: adamw
+  MAX_EPOCH: 30
+  WEIGHT_DECAY: 1e-4
+  WARMUP_EPOCHS: 3
+  LR_POLICY: cosine
+
+LOG_PERIOD: 200
+SAVE_PERIOD: 5
+NUM_GPUS: 1

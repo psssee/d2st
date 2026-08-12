@@ -32,6 +32,10 @@ from models.frame_selector.pairwise_diverse_frame_selector import (
     PAIRWISE_DIVERSE_TYPES,
     PairwiseDiverseFrameSelector,
 )
+from models.frame_selector.phase_offset_frame_selector import (
+    PHASE_OFFSET_TYPES,
+    PhaseOffsetFrameSelector,
+)
 import clip
 
 
@@ -62,7 +66,14 @@ class FrameSelectorModel(nn.Module):
 
         # 鈹€鈹€ Frame Selector (trainable, FP32) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         selector_type = str(getattr(fs_cfg, "TYPE", "otam")).lower()
-        if selector_type in PAIRWISE_DIVERSE_TYPES:
+        if selector_type in PHASE_OFFSET_TYPES:
+            selector_cls = PhaseOffsetFrameSelector
+            selector_kwargs = {
+                "window_size": int(getattr(fs_cfg, "WINDOW_SIZE", 4)),
+                "offset_range": int(getattr(fs_cfg, "OFFSET_RANGE", 2)),
+                "center_bias": float(getattr(fs_cfg, "CENTER_BIAS", 0.05)),
+            }
+        elif selector_type in PAIRWISE_DIVERSE_TYPES:
             selector_cls = PairwiseDiverseFrameSelector
             selector_kwargs = {
                 "coverage_weight": float(getattr(fs_cfg, "COVERAGE_WEIGHT", 0.35)),

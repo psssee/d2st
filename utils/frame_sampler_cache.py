@@ -30,8 +30,18 @@ def _selector_spec(fs_cfg):
         PAIRWISE_DIVERSE_TYPES,
         PairwiseDiverseFrameSelector,
     )
+    from models.frame_selector.phase_offset_frame_selector import (
+        PHASE_OFFSET_TYPES,
+        PhaseOffsetFrameSelector,
+    )
 
     selector_type = str(getattr(fs_cfg, "TYPE", "otam")).lower()
+    if selector_type in PHASE_OFFSET_TYPES:
+        return selector_type, PhaseOffsetFrameSelector, {
+            "window_size": int(getattr(fs_cfg, "WINDOW_SIZE", 4)),
+            "offset_range": int(getattr(fs_cfg, "OFFSET_RANGE", 2)),
+            "center_bias": float(getattr(fs_cfg, "CENTER_BIAS", 0.05)),
+        }
     if selector_type in PAIRWISE_DIVERSE_TYPES:
         return selector_type, PairwiseDiverseFrameSelector, {
             "coverage_weight": float(getattr(fs_cfg, "COVERAGE_WEIGHT", 0.35)),

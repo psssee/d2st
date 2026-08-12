@@ -20,6 +20,12 @@ from .pairwise_diverse_frame_selector import (
     pairwise_diverse_bimhm_loss,
     ste_select_features_pairwise_diverse,
 )
+from .phase_offset_frame_selector import (
+    PHASE_OFFSET_TYPES,
+    PhaseOffsetFrameSelector,
+    phase_offset_bimhm_loss,
+    ste_select_features_phase_offset,
+)
 
 __all__ = [
     "OTAMFrameSelector",
@@ -33,6 +39,10 @@ __all__ = [
     "PairwiseDiverseFrameSelector",
     "pairwise_diverse_bimhm_loss",
     "ste_select_features_pairwise_diverse",
+    "PHASE_OFFSET_TYPES",
+    "PhaseOffsetFrameSelector",
+    "phase_offset_bimhm_loss",
+    "ste_select_features_phase_offset",
 ]
 
 

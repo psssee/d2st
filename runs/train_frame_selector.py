@@ -57,6 +57,11 @@ from models.frame_selector.pairwise_diverse_frame_selector import (
     pairwise_diverse_bimhm_loss,
     ste_select_features_pairwise_diverse,
 )
+from models.frame_selector.phase_offset_frame_selector import (
+    PHASE_OFFSET_TYPES,
+    phase_offset_bimhm_loss,
+    ste_select_features_phase_offset,
+)
 from utils.config import Config
 import utils.logging as logging
 import utils.misc as misc
@@ -68,6 +73,31 @@ def _compute_selector_loss(selected_feats, labels, frame_scores, hard_indices,
                            all_feats, cfg, margin, index_weight, score_margin_weight):
     """Dispatch the configured selector loss without changing old OTAM mode."""
     loss_name = str(getattr(cfg.LOSS, "NAME", "otam_triplet")).lower()
+    if loss_name in {"phase_offset", "phase_offset_bimhm", "anchor_offset_bimhm",
+                     "d2st_phase_offset"}:
+        mode = str(getattr(cfg.LOSS, "BIMHM_MODE", "triplet")).lower()
+        return phase_offset_bimhm_loss(
+            selected_feats=selected_feats,
+            labels=labels,
+            frame_scores=frame_scores,
+            all_feats=all_feats,
+            margin=margin,
+            temperature=float(getattr(cfg.LOSS, "TEMPERATURE", 1.0)),
+            mode=mode,
+            triplet_weight=float(getattr(cfg.LOSS, "TRIPLET_WEIGHT", 1.0)),
+            class_ce_weight=float(getattr(cfg.LOSS, "CLASS_CE_WEIGHT", 1.0)),
+            match_weight=float(getattr(cfg.LOSS, "MATCH_WEIGHT", 0.0)),
+            match_normalize_targets=bool(
+                getattr(cfg.LOSS, "MATCH_NORMALIZE_TARGETS", True)
+            ),
+            normalize_by_frames=bool(
+                getattr(cfg.LOSS, "NORMALIZE_BY_FRAMES", False)
+            ),
+            coverage_recon_weight=float(
+                getattr(cfg.LOSS, "COVERAGE_RECON_WEIGHT", 0.05)
+            ),
+        )
+
     if loss_name in {"pairwise_diverse", "pairwise_diverse_bimhm", "diverse_bimhm",
                      "d2st_pairwise_diverse"}:
         mode = str(getattr(cfg.LOSS, "BIMHM_MODE", "match_aware")).lower()
@@ -333,7 +363,10 @@ def train():
 
             # 鈹€鈹€ STE selection + configured selector loss 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
             selector_type = str(getattr(cfg.FRAME_SELECTOR, "TYPE", "otam")).lower()
-            if selector_type in PAIRWISE_DIVERSE_TYPES:
+            if selector_type in PHASE_OFFSET_TYPES:
+                ste_feats, hard_indices = ste_select_features_phase_offset(
+                    model.selector, frame_scores, all_feats, tau=ste_tau)
+            elif selector_type in PAIRWISE_DIVERSE_TYPES:
                 ste_feats, hard_indices = ste_select_features_pairwise_diverse(
                     model.selector, frame_scores, all_feats, tau=ste_tau)
             else:
@@ -351,12 +384,16 @@ def train():
                 score_margin_weight=score_margin_weight,
             )
             total_key = (
-                "loss_pairwise_bimhm_total"
-                if "loss_pairwise_bimhm_total" in loss_dict
+                "loss_phase_offset_total"
+                if "loss_phase_offset_total" in loss_dict
                 else (
-                    "loss_bimhm_total"
-                    if "loss_bimhm_total" in loss_dict
-                    else "loss_otam_total"
+                    "loss_pairwise_bimhm_total"
+                    if "loss_pairwise_bimhm_total" in loss_dict
+                    else (
+                        "loss_bimhm_total"
+                        if "loss_bimhm_total" in loss_dict
+                        else "loss_otam_total"
+                    )
                 )
             )
             loss = loss_dict[total_key]
@@ -470,12 +507,16 @@ def train():
                         score_margin_weight=0.0,
                     )
                     val_key = (
-                        "loss_pairwise_bimhm_total"
-                        if "loss_pairwise_bimhm_total" in vd
+                        "loss_phase_offset_total"
+                        if "loss_phase_offset_total" in vd
                         else (
-                            "loss_bimhm_total"
-                            if "loss_bimhm_total" in vd
-                            else "loss_otam_total"
+                            "loss_pairwise_bimhm_total"
+                            if "loss_pairwise_bimhm_total" in vd
+                            else (
+                                "loss_bimhm_total"
+                                if "loss_bimhm_total" in vd
+                                else "loss_otam_total"
+                            )
                         )
                     )
                     val_loss.update(vd[val_key].item(), data.shape[0])

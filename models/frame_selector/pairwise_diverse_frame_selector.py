@@ -79,9 +79,11 @@ class PairwiseDiverseFrameSelector(BiMHMFrameSelector):
         B, seg_len, _ = seg_feats.shape
         device = seg_feats.device
         dtype = seg_scores.dtype
-        norm_feats = F.normalize(seg_feats.float(), dim=-1)
+        clean_feats = torch.nan_to_num(seg_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
+        clean_scores = torch.nan_to_num(seg_scores, nan=0.0, posinf=0.0, neginf=0.0)
+        norm_feats = F.normalize(clean_feats, dim=-1, eps=1e-6)
         sim = torch.bmm(norm_feats, norm_feats.transpose(1, 2))
-        dist = (1.0 - sim).to(dtype)
+        dist = torch.nan_to_num(1.0 - sim, nan=1.0, posinf=2.0, neginf=0.0).clamp(0.0, 2.0).to(dtype)
 
         boundary_bonus = self._segment_boundary_bonus(seg_len, device, dtype)
         selected = []
@@ -93,9 +95,9 @@ class PairwiseDiverseFrameSelector(BiMHMFrameSelector):
                 gather_idx = selected_idx.unsqueeze(1).expand(-1, seg_len, -1)
                 min_dist = dist.gather(2, gather_idx).min(dim=2).values
             else:
-                min_dist = torch.zeros_like(seg_scores)
+                min_dist = torch.zeros_like(clean_scores)
 
-            utility = seg_scores + self.coverage_weight * min_dist + boundary_bonus
+            utility = clean_scores + self.coverage_weight * min_dist + boundary_bonus
             utility = utility.masked_fill(selected_mask, torch.finfo(dtype).min)
             next_idx = utility.argmax(dim=-1)
             selected.append(next_idx)
@@ -110,7 +112,12 @@ class PairwiseDiverseFrameSelector(BiMHMFrameSelector):
         if T != self.T:
             raise ValueError(f"Expected {self.T} frames, got {T}")
 
+        score_dtype = next(self.score_net.parameters()).dtype
+        video_feats = torch.nan_to_num(
+            video_feats.to(dtype=score_dtype), nan=0.0, posinf=0.0, neginf=0.0
+        )
         frame_scores = self.score_net(video_feats).squeeze(-1)
+        frame_scores = torch.nan_to_num(frame_scores, nan=0.0, posinf=0.0, neginf=0.0)
         selected_indices = []
         for i in range(self.segments):
             start = i * self.segment_size
@@ -143,8 +150,10 @@ def selected_diversity_loss(selected_feats, threshold=0.55):
     B, K, _ = selected_feats.shape
     if K <= 1:
         return selected_feats.sum() * 0.0
-    feats = F.normalize(selected_feats, dim=-1)
+    selected_feats = torch.nan_to_num(selected_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    feats = F.normalize(selected_feats, dim=-1, eps=1e-6)
     sim = torch.bmm(feats, feats.transpose(1, 2))
+    sim = torch.nan_to_num(sim, nan=0.0, posinf=1.0, neginf=-1.0)
     eye = torch.eye(K, device=selected_feats.device, dtype=torch.bool)
     off_diag = sim[:, ~eye].view(B, K, K - 1)
     return F.relu(off_diag - float(threshold)).mean()
@@ -154,9 +163,12 @@ def coverage_reconstruction_loss(selected_feats, all_feats):
     """Make selected frames cover the original T-frame clip."""
     if all_feats is None:
         return selected_feats.sum() * 0.0
-    selected = F.normalize(selected_feats, dim=-1)
-    all_norm = F.normalize(all_feats, dim=-1)
+    selected_feats = torch.nan_to_num(selected_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    all_feats = torch.nan_to_num(all_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    selected = F.normalize(selected_feats, dim=-1, eps=1e-6)
+    all_norm = F.normalize(all_feats, dim=-1, eps=1e-6)
     sim = torch.bmm(all_norm, selected.transpose(1, 2))
+    sim = torch.nan_to_num(sim, nan=0.0, posinf=1.0, neginf=-1.0)
     nearest_sim = sim.max(dim=-1).values
     return (1.0 - nearest_sim).mean()
 
@@ -220,8 +232,8 @@ def ste_select_features_pairwise_diverse(selector, frame_scores, feats, tau=0.5)
     for s in range(selector.segments):
         start = s * selector.segment_size
         end = (s + 1) * selector.segment_size
-        seg_sc = frame_scores[:, start:end]
-        seg_fe = feats[:, start:end, :]
+        seg_sc = torch.nan_to_num(frame_scores[:, start:end], nan=0.0, posinf=0.0, neginf=0.0)
+        seg_fe = torch.nan_to_num(feats[:, start:end, :].float(), nan=0.0, posinf=0.0, neginf=0.0)
 
         hard_idx_global = selector._select_segment(seg_fe, seg_sc, start)
         hard_idx = hard_idx_global - start
@@ -230,7 +242,8 @@ def ste_select_features_pairwise_diverse(selector, frame_scores, feats, tau=0.5)
         )
         hard = seg_fe[bidx, hard_idx]
 
-        sm = F.softmax(seg_sc / tau, dim=-1)
+        seg_sc = torch.nan_to_num(seg_sc, nan=0.0, posinf=0.0, neginf=0.0)
+        sm = F.softmax(seg_sc / max(float(tau), 1e-6), dim=-1)
         sw, si = sm.sort(dim=-1, descending=True)
         topk_w = sw[:, :selector.per_seg]
         topk_f = seg_fe.gather(

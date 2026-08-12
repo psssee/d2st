@@ -312,7 +312,7 @@ class FrameSelectorFeatureDataset(Dataset):
         try:
             feats = torch.load(path)
             # 馃敡 鐗瑰緛缂撳瓨锛欶P16 鈫?FP32锛坰elector 闇€瑕?FP32 杈撳叆锛?
-            feats = feats.float()
+            feats = torch.nan_to_num(feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
         except Exception as e:
             print(f"  [WARN] Cache load failed: {path} ({e}), returning zeros")
             feats = torch.zeros(32, 512)
@@ -353,7 +353,7 @@ def build_fs_dataloader(cfg, split="train"):
     loss_name = str(getattr(cfg.LOSS, "NAME", "otam_triplet")).lower()
     use_balanced = bool(
         getattr(cfg.LOSS, "CLASS_BALANCED_BATCH", False)
-    ) and loss_name.startswith("bimhm")
+    ) and ("bimhm" in loss_name)
 
     if use_balanced:
         sampler = ClassBalancedBatchSampler(

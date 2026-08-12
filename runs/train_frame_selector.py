@@ -360,6 +360,14 @@ def train():
                 )
             )
             loss = loss_dict[total_key]
+            if not torch.isfinite(loss):
+                logger.warning(
+                    "Non-finite frame selector loss detected; skipping this batch. "
+                    f"loss_key={total_key}, labels={labels.detach().cpu().tolist()}"
+                )
+                optimizer.zero_grad(set_to_none=True)
+                continue
+
 
             # 鈹€鈹€ Backward 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
             optimizer.zero_grad()

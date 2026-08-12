@@ -47,12 +47,16 @@ def bimhm_distance(query_feats, support_feats, normalize=True,
             f"{query_feats.shape[1]} and {support_feats.shape[1]}"
         )
 
+    query_feats = torch.nan_to_num(query_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    support_feats = torch.nan_to_num(support_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
+
     if normalize:
-        query_feats = F.normalize(query_feats, dim=-1)
-        support_feats = F.normalize(support_feats, dim=-1)
+        query_feats = F.normalize(query_feats, dim=-1, eps=1e-6)
+        support_feats = F.normalize(support_feats, dim=-1, eps=1e-6)
 
     # (Bq, Bs, T, T): query frame i against support frame j.
     frame_dist = 1.0 - torch.einsum("qtd,bsd->qbst", query_feats, support_feats)
+    frame_dist = torch.nan_to_num(frame_dist, nan=1.0, posinf=2.0, neginf=0.0).clamp(0.0, 2.0)
 
     # query -> support and support -> query.
     query_to_support = frame_dist.min(dim=3).values.sum(dim=2)
@@ -159,11 +163,13 @@ def _frame_matchability_targets(all_feats, labels, normalize=True,
 
     device = all_feats.device
     B, T, D = all_feats.shape
+    all_feats = torch.nan_to_num(all_feats.float(), nan=0.0, posinf=0.0, neginf=0.0)
     flat = all_feats.reshape(B * T, D)
     if normalize:
-        flat = F.normalize(flat, dim=-1)
+        flat = F.normalize(flat, dim=-1, eps=1e-6)
 
     dist = 1.0 - torch.matmul(flat, flat.t())
+    dist = torch.nan_to_num(dist, nan=1.0, posinf=2.0, neginf=0.0).clamp(0.0, 2.0)
     frame_labels = labels.to(device=device).repeat_interleave(T)
     video_ids = torch.arange(B, device=device).repeat_interleave(T)
 
@@ -177,12 +183,14 @@ def _frame_matchability_targets(all_feats, labels, normalize=True,
     neg_mask = ~same_class
     neg_mask.fill_diagonal_(False)
 
-    inf = torch.finfo(dist.dtype).max
+    inf = torch.tensor(float("inf"), device=device, dtype=dist.dtype)
     pos = dist.masked_fill(~pos_mask, inf).min(dim=1).values
     neg = dist.masked_fill(~neg_mask, inf).min(dim=1).values
     valid = torch.isfinite(pos) & torch.isfinite(neg)
 
-    target = (neg - pos).masked_fill(~valid, 0.0)
+    target = torch.zeros_like(pos)
+    target[valid] = neg[valid] - pos[valid]
+    target = torch.nan_to_num(target, nan=0.0, posinf=0.0, neginf=0.0)
     return target.view(B, T), valid.view(B, T)
 
 
@@ -201,8 +209,8 @@ def _matchability_regression_loss(frame_scores, all_feats, labels,
     if not valid.any():
         return frame_scores.sum() * 0.0, 0
 
-    scores = frame_scores.float()
-    target = target.float()
+    scores = torch.nan_to_num(frame_scores.float(), nan=0.0, posinf=0.0, neginf=0.0)
+    target = torch.nan_to_num(target.float(), nan=0.0, posinf=0.0, neginf=0.0)
     mask = valid.float()
 
     if normalize_targets:

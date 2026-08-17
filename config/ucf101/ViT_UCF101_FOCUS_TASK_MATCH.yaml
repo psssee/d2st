@@ -1,0 +1,13 @@
+# D2ST + FOCUS representation refinement + task-aware soft matching.
+_BASE: ./ViT_UCF101_FOCUS.yaml
+
+TASK_MATCH:
+  ENABLE: true
+  HIDDEN_RATIO: 0.25
+  DROPOUT: 0.1
+  TEMPERATURE: 1.0
+  DISTANCE_SCALE: 16.0
+  ALPHA_INIT: -4.0
+  USE_FOCUS_FEATURES: true
+
+OUTPUT_DIR: output/UCF101_FOCUS_TASK_MATCH

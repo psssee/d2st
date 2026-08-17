@@ -612,6 +612,84 @@ class D2STFocusResidual(nn.Module):
         return video_feats + gate * residual
 
 
+class D2STTaskAwareMatcher(nn.Module):
+    """Episode-conditioned soft frame matcher for D2ST frame features.
+
+    The matching matrix is shared across candidate classes for each query, as
+    it is generated from the query and the complete support episode. This keeps
+    the matcher task-aware without leaking a candidate class into the weights.
+    """
+
+    def __init__(self, dim, num_frames, hidden_ratio=0.25, dropout=0.1,
+                 temperature=1.0, distance_scale=None):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.temperature = max(float(temperature), 1e-6)
+        self.distance_scale = float(
+            2 * self.num_frames if distance_scale is None else distance_scale
+        )
+        hidden_dim = max(int(dim * float(hidden_ratio)), 32)
+
+        self.context_norm = nn.LayerNorm(dim)
+        self.generator = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(float(dropout)),
+            nn.Linear(hidden_dim, self.num_frames * self.num_frames),
+        )
+
+        # Start from uniform matching. The outer residual gate separately keeps
+        # the full model close to the original Bi-MHM decision rule.
+        nn.init.constant_(self.generator[-1].weight, 0.0)
+        nn.init.constant_(self.generator[-1].bias, 0.0)
+
+    def _class_prototypes(self, support_features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        prototypes = [
+            support_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ]
+        return torch.stack(prototypes, dim=0)
+
+    def forward(self, support_features, query_features, support_labels):
+        if support_features.ndim != 3 or query_features.ndim != 3:
+            raise ValueError(
+                "Task-aware matcher expects support/query features as (B,T,D), "
+                f"got {tuple(support_features.shape)} and {tuple(query_features.shape)}"
+            )
+        if support_features.shape[1] != self.num_frames or query_features.shape[1] != self.num_frames:
+            raise ValueError(
+                f"Task-aware matcher expects {self.num_frames} frames, got "
+                f"{support_features.shape[1]} and {query_features.shape[1]}"
+            )
+
+        support_labels = support_labels.to(device=support_features.device)
+        support_prototypes = self._class_prototypes(support_features, support_labels)
+
+        # TS-DCM-style task context: each query is conditioned on the complete
+        # support episode, not on one candidate class at a time.
+        support_context = support_prototypes.mean(dim=(0, 1))
+        query_context = query_features.mean(dim=1)
+        task_context = self.context_norm(query_context + support_context.unsqueeze(0))
+
+        match_logits = self.generator(task_context)
+        match_weights = F.softmax(
+            match_logits / self.temperature, dim=-1
+        ).view(-1, self.num_frames, self.num_frames)
+
+        query_norm = F.normalize(query_features, dim=-1, eps=1e-6)
+        support_norm = F.normalize(support_prototypes, dim=-1, eps=1e-6)
+        frame_similarity = torch.einsum(
+            'qtd,csd->qcts', query_norm, support_norm
+        )
+        matched_similarity = (
+            frame_similarity * match_weights.unsqueeze(1)
+        ).sum(dim=(-1, -2))
+
+        # Match the numerical range of the two T-frame sums used by Bi-MHM.
+        return -(1.0 - matched_similarity) * self.distance_scale
+
+
 @HEAD_REGISTRY.register()
 class ViT_CLIP(nn.Module):
     def __init__(self, cfg):
@@ -643,6 +721,26 @@ class ViT_CLIP(nn.Module):
             )
             self.focus_alpha = nn.Parameter(
                 torch.tensor(float(getattr(cfg.FOCUS, "ALPHA_INIT", -4.0)))
+            )
+        self.task_match_enable = (
+            hasattr(cfg, "TASK_MATCH") and getattr(cfg.TASK_MATCH, "ENABLE", False)
+        )
+        if self.task_match_enable:
+            self.task_matcher = D2STTaskAwareMatcher(
+                dim=self.width,
+                num_frames=self.num_frames,
+                hidden_ratio=float(getattr(cfg.TASK_MATCH, "HIDDEN_RATIO", 0.25)),
+                dropout=float(getattr(cfg.TASK_MATCH, "DROPOUT", 0.1)),
+                temperature=float(getattr(cfg.TASK_MATCH, "TEMPERATURE", 1.0)),
+                distance_scale=float(
+                    getattr(cfg.TASK_MATCH, "DISTANCE_SCALE", 2 * self.num_frames)
+                ),
+            )
+            self.task_match_alpha = nn.Parameter(
+                torch.tensor(float(getattr(cfg.TASK_MATCH, "ALPHA_INIT", -4.0)))
+            )
+            self.task_match_use_focus = bool(
+                getattr(cfg.TASK_MATCH, "USE_FOCUS_FEATURES", True)
             )
         self.init_weights()
 
@@ -761,6 +859,8 @@ class ViT_CLIP(nn.Module):
         # class_dist = OTAM_dist(dist) + OTAM_dist(rearrange(dist, 'q s n m -> q s m n'))
 
         logits = -class_dist
+        task_support = support_features_raw
+        task_query = query_features_raw
         if self.focus_enable:
             focus_support = self.focus_branch(support_features_raw, support_timestamps)
             focus_query = self.focus_branch(query_features_raw, target_timestamps)
@@ -772,6 +872,18 @@ class ViT_CLIP(nn.Module):
             focus_logits = -focus_class_dist
             focus_weight = torch.sigmoid(self.focus_alpha)
             logits = logits + focus_weight * (focus_logits - logits.detach())
+            if self.task_match_enable and self.task_match_use_focus:
+                task_support = focus_support
+                task_query = focus_query
+
+        if self.task_match_enable:
+            task_logits = self.task_matcher(
+                task_support,
+                task_query,
+                support_labels,
+            )
+            task_weight = torch.sigmoid(self.task_match_alpha)
+            logits = logits + task_weight * (task_logits - logits.detach())
 
         return_dict = {'logits': logits, 'class_logits': class_logits}
         return return_dict

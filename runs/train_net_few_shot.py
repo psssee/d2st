@@ -197,9 +197,20 @@ def train_few_shot(cfg):
     cur_epoch = 0
     shuffle_dataset(train_loader, cur_epoch)
 
-    # freeze some parameters
+    # Keep the pretrained CLIP backbone frozen while training D2ST extensions.
+    trainable_markers = (
+        'class_embedding',
+        'temporal_embedding',
+        'Adapter',
+        'ln_post',
+        'classification_layer',
+        'focus_branch',
+        'focus_alpha',
+        'task_matcher',
+        'task_match_alpha',
+    )
     for name, param in model.named_parameters():
-        if 'class_embedding' not in name and 'temporal_embedding' not in name and 'Adapter' not in name and 'ln_post' not in name and 'classification_layer' not in name and 'focus_branch' not in name and 'focus_alpha' not in name:
+        if not any(marker in name for marker in trainable_markers):
             param.requires_grad = False
 
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:

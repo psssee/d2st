@@ -1,0 +1,13 @@
+# D2ST + task-aware soft matching, without FOCUS.
+_BASE: ./ViT_UCF101.yaml
+
+TASK_MATCH:
+  ENABLE: true
+  HIDDEN_RATIO: 0.25
+  DROPOUT: 0.1
+  TEMPERATURE: 1.0
+  DISTANCE_SCALE: 16.0
+  ALPHA_INIT: -4.0
+  USE_FOCUS_FEATURES: false
+
+OUTPUT_DIR: output/UCF101_TASK_MATCH

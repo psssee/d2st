@@ -184,10 +184,19 @@ class Few_shot(BaseVideoDataset):
             """returns dict of support and target images and labels for a meta training task"""
             # select classes to use for this task
             c = self.split_few_shot
-            classes = c.get_unique_classes()
-            batch_classes = random.sample(classes, self.cfg.TRAIN.WAY)
+            classes = sorted(c.get_unique_classes())
+            # Training episodes stay stochastic. Validation/test episodes must
+            # be identical at every checkpoint, otherwise accuracy changes can
+            # be caused by a new sampled episode set rather than the model.
+            if self.split == "train":
+                episode_rng = random
+            else:
+                episode_seed = int(getattr(self.cfg, "RANDOM_SEED", 0))
+                episode_seed += int(getattr(self.cfg.TEST, "EPISODE_SEED", 0))
+                episode_rng = random.Random(episode_seed + index)
+            batch_classes = episode_rng.sample(classes, self.cfg.TRAIN.WAY)
             if self.split != "train" and hasattr(self.cfg.TRAIN, "WAT_TEST"):
-                batch_classes = random.sample(classes, self.cfg.TRAIN.WAT_TEST)
+                batch_classes = episode_rng.sample(classes, self.cfg.TRAIN.WAT_TEST)
 
             if self.split == "train":
                 n_queries = self.cfg.TRAIN.QUERY_PER_CLASS
@@ -209,7 +218,9 @@ class Few_shot(BaseVideoDataset):
 
                     for bl, bc in enumerate(batch_classes):
                         n_total = c.get_num_videos_for_class(bc)
-                        idxs = random.sample([i for i in range(n_total)], self.cfg.SUPPORT_SHOT + n_queries)
+                        idxs = episode_rng.sample(
+                            range(n_total), self.cfg.SUPPORT_SHOT + n_queries
+                        )
 
                         for idx in idxs[0:self.cfg.SUPPORT_SHOT]:
                             if hasattr(self.cfg.AUGMENTATION, "SUPPORT_QUERY_DIFF_SUPPORT") and self.cfg.AUGMENTATION.SUPPORT_QUERY_DIFF_SUPPORT and self.split_dataset == "train":
@@ -242,11 +253,11 @@ class Few_shot(BaseVideoDataset):
                     ))
 
             s = list(zip(support_set, support_labels, real_support_labels, support_timestamps))
-            random.shuffle(s)
+            episode_rng.shuffle(s)
             support_set, support_labels, real_support_labels, support_timestamps = zip(*s)
 
             t = list(zip(target_set, target_labels, real_target_labels, target_timestamps))
-            random.shuffle(t)
+            episode_rng.shuffle(t)
             target_set, target_labels, real_target_labels, target_timestamps = zip(*t)
 
             support_set = torch.cat(support_set)  # [200, 3, 224, 224]

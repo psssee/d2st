@@ -70,6 +70,9 @@ def get_last_checkpoint(path_to_job):
     """
 
     d = get_checkpoint_dir(path_to_job)
+    best_checkpoint = os.path.join(d, "checkpoint_best.pyth")
+    if os.path.exists(best_checkpoint):
+        return best_checkpoint
     names = os.listdir(d) if os.path.exists(d) else []
     names = [f for f in names if "checkpoint" in f]
     assert len(names), "No checkpoints found in '{}'.".format(d)
@@ -102,7 +105,15 @@ def is_checkpoint_epoch(cfg, cur_epoch):
     return (cur_epoch + 1) % cfg.TRAIN.CHECKPOINT_PERIOD == 0 or cur_epoch + 1 == cfg.OPTIMIZER.MAX_EPOCH
 
 
-def save_checkpoint(path_to_job, model, optimizer, epoch, cfg, model_bucket=None):
+def save_checkpoint(
+        path_to_job,
+        model,
+        optimizer,
+        epoch,
+        cfg,
+        model_bucket=None,
+        checkpoint_name=None,
+):
     """
     Save a checkpoint.
     Args:
@@ -130,7 +141,12 @@ def save_checkpoint(path_to_job, model, optimizer, epoch, cfg, model_bucket=None
     }
 
     # Write the checkpoint.
-    path_to_checkpoint = get_path_to_checkpoint(path_to_job, epoch + 1)
+    if checkpoint_name is None:
+        path_to_checkpoint = get_path_to_checkpoint(path_to_job, epoch + 1)
+    else:
+        path_to_checkpoint = os.path.join(
+            get_checkpoint_dir(path_to_job), checkpoint_name
+        )
     with open(path_to_checkpoint, "wb") as f:
         torch.save(checkpoint, f)
 

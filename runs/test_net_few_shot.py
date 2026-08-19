@@ -21,6 +21,17 @@ from datasets.base.builder import build_loader
 logger = logging.get_logger(__name__)
 
 
+def _unwrap_meta_episode(task_dict):
+    """Remove the DataLoader dimension for the single-episode meta learner."""
+    episode_batch = int(task_dict["target_labels"].shape[0])
+    if episode_batch != 1:
+        raise ValueError(
+            "Meta-batch evaluation currently processes one episode per forward; "
+            f"set TEST.BATCH_SIZE=1, got {episode_batch}."
+        )
+    return {key: value[0] for key, value in task_dict.items()}
+
+
 @torch.no_grad()
 def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     model.eval()
@@ -31,13 +42,16 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
             break
+        task_dict = _unwrap_meta_episode(task_dict)
         if misc.get_num_gpus(cfg):
             for k in task_dict.keys():
-                task_dict[k] = task_dict[k][0].cuda(non_blocking=True)
+                task_dict[k] = task_dict[k].cuda(non_blocking=True)
 
         model_dict = model(task_dict)
         target_logits = model_dict['logits']
-        loss = F.cross_entropy(model_dict["logits"], task_dict["target_labels"].long()) / cfg.TRAIN.BATCH_SIZE
+        loss = F.cross_entropy(
+            model_dict["logits"], task_dict["target_labels"].long()
+        )
 
         # Compute the errors.
         labels = task_dict['target_labels']

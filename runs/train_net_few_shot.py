@@ -24,6 +24,17 @@ from datasets.base.builder import build_loader, shuffle_dataset
 logger = logging.get_logger(__name__)
 
 
+def _unwrap_meta_episode(task_dict):
+    """Remove the DataLoader dimension for the single-episode meta learner."""
+    episode_batch = int(task_dict["target_labels"].shape[0])
+    if episode_batch != 1:
+        raise ValueError(
+            "Meta-batch training currently processes one episode per forward; "
+            f"set TRAIN/TEST.BATCH_SIZE=1, got {episode_batch}."
+        )
+    return {key: value[0] for key, value in task_dict.items()}
+
+
 def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val_meter, val_loader):
     # Enable train mode.
     model.train()
@@ -34,23 +45,77 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
     logger.info(f"Norm training: {norm_train}")
     train_meter.iter_tic()
 
+    best_val_acc = float("-inf")
+    bad_eval_count = 0
+    early_stop_cfg = getattr(cfg.TRAIN, "EARLY_STOP", None)
+    early_stop_enabled = bool(
+        early_stop_cfg is not None
+        and getattr(early_stop_cfg, "ENABLE", False)
+        and val_loader is not None
+    )
+    early_stop_patience = int(getattr(early_stop_cfg, "PATIENCE", 0))
+    early_stop_min_delta = float(getattr(early_stop_cfg, "MIN_DELTA", 0.0))
+
     for cur_iter, task_dict in enumerate(train_loader):
         '''['support_set', 'support_labels', 'target_set', 'target_labels', 'real_target_labels', 'batch_class_list', 'real_support_labels']'''
         if cur_iter >= cfg.TRAIN.NUM_TRAIN_TASKS:
             break
-        # Save a checkpoint.
+        # Evaluate before the next episode. The checkpoint is saved only when
+        # this evaluation improves, so the output directory keeps the best
+        # generalizing model instead of the final overfit model.
         cur_epoch = cur_iter // cfg.SOLVER.STEPS_ITER
         if (cur_iter + 1) % cfg.TRAIN.VAL_FRE_ITER == 0:
-            model_bucket = None
             cur_epoch_save = cur_iter // cfg.TRAIN.VAL_FRE_ITER
-            cu.save_checkpoint(cfg.OUTPUT_DIR, model, optimizer, cur_epoch_save + cfg.TRAIN.NUM_FOLDS - 1, cfg, model_bucket)
             val_meter.set_model_ema_enabled(False)
-            eval_epoch(val_loader, model, val_meter, cur_epoch_save + cfg.TRAIN.NUM_FOLDS - 1, cfg)
+            val_acc = eval_epoch(
+                val_loader,
+                model,
+                val_meter,
+                cur_epoch_save + cfg.TRAIN.NUM_FOLDS - 1,
+                cfg,
+            )
+            if val_acc > best_val_acc + early_stop_min_delta:
+                best_val_acc = val_acc
+                bad_eval_count = 0
+                model_bucket = None
+                checkpoint_path = cu.save_checkpoint(
+                    cfg.OUTPUT_DIR,
+                    model,
+                    optimizer,
+                    cur_epoch_save + cfg.TRAIN.NUM_FOLDS - 1,
+                    cfg,
+                    model_bucket,
+                    checkpoint_name="checkpoint_best.pyth",
+                )
+                logger.info(
+                    "New best validation accuracy: %.4f; checkpoint=%s",
+                    best_val_acc,
+                    checkpoint_path,
+                )
+            else:
+                bad_eval_count += 1
+                logger.info(
+                    "Validation accuracy %.4f did not improve best %.4f "
+                    "(%d/%d evaluations without improvement).",
+                    val_acc,
+                    best_val_acc,
+                    bad_eval_count,
+                    early_stop_patience,
+                )
+                if early_stop_enabled and bad_eval_count > early_stop_patience:
+                    logger.info(
+                        "Early stopping at iteration %d; best validation "
+                        "accuracy was %.4f.",
+                        cur_iter + 1,
+                        best_val_acc,
+                    )
+                    break
             model.train()
 
+        task_dict = _unwrap_meta_episode(task_dict)
         if misc.get_num_gpus(cfg):
             for k in task_dict.keys():
-                task_dict[k] = task_dict[k][0].cuda(non_blocking=True)
+                task_dict[k] = task_dict[k].cuda(non_blocking=True)
 
         # Update the learning rate.
         lr = optim.get_epoch_lr(float(cur_iter) / cfg.SOLVER.STEPS_ITER, cfg)
@@ -60,10 +125,22 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
         target_logits = model_dict['logits']
 
         if hasattr(cfg.TRAIN, "USE_CLASSIFICATION_VALUE"):
-            loss = (F.cross_entropy(model_dict["logits"], task_dict["target_labels"].long()) + cfg.TRAIN.USE_CLASSIFICATION_VALUE *
-                    F.cross_entropy(model_dict["class_logits"], torch.cat([task_dict["real_support_labels"], task_dict["real_target_labels"]], 0).long())) / cfg.TRAIN.BATCH_SIZE
+            loss = F.cross_entropy(
+                model_dict["logits"], task_dict["target_labels"].long()
+            ) + cfg.TRAIN.USE_CLASSIFICATION_VALUE * F.cross_entropy(
+                model_dict["class_logits"],
+                torch.cat(
+                    [
+                        task_dict["real_support_labels"],
+                        task_dict["real_target_labels"],
+                    ],
+                    0,
+                ).long(),
+            )
         else:
-            loss = F.cross_entropy(model_dict["logits"], task_dict["target_labels"].long()) / cfg.TRAIN.BATCH_SIZE
+            loss = F.cross_entropy(
+                model_dict["logits"], task_dict["target_labels"].long()
+            )
 
         # check Nan Loss.
         if math.isnan(loss):
@@ -108,15 +185,18 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
             break
+        task_dict = _unwrap_meta_episode(task_dict)
         if misc.get_num_gpus(cfg):
             for k in task_dict.keys():
-                task_dict[k] = task_dict[k][0].cuda(non_blocking=True)
+                task_dict[k] = task_dict[k].cuda(non_blocking=True)
 
         # preds, logits = model(inputs)
         model_dict = model(task_dict)
 
         target_logits = model_dict['logits']
-        loss = F.cross_entropy(model_dict["logits"], task_dict["target_labels"].long()) / cfg.TRAIN.BATCH_SIZE
+        loss = F.cross_entropy(
+            model_dict["logits"], task_dict["target_labels"].long()
+        )
 
         # Compute the errors.
         labels = task_dict['target_labels']
@@ -138,8 +218,10 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         val_meter.iter_tic()
 
     # Log epoch stats.
+    val_acc = 100.0 - val_meter.num_top1_mis / val_meter.num_samples
     val_meter.log_epoch_stats(cur_epoch)
     val_meter.reset()
+    return val_acc
 
 
 def train_few_shot(cfg):

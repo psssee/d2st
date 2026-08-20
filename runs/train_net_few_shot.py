@@ -55,6 +55,7 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
     )
     early_stop_patience = int(getattr(early_stop_cfg, "PATIENCE", 0))
     early_stop_min_delta = float(getattr(early_stop_cfg, "MIN_DELTA", 0.0))
+    accumulation_steps = max(int(cfg.TRAIN.BATCH_SIZE_PER_TASK), 1)
 
     for cur_iter, task_dict in enumerate(train_loader):
         '''['support_set', 'support_labels', 'target_set', 'target_labels', 'real_target_labels', 'batch_class_list', 'real_support_labels']'''
@@ -147,7 +148,9 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
             loss.backward(retain_graph=False)
             optimizer.zero_grad()
             continue
-        loss.backward(retain_graph=False)
+        # Average gradients across accumulated episodes so the effective
+        # meta-batch does not change the update magnitude.
+        (loss / accumulation_steps).backward(retain_graph=False)
 
         # optimize
         if ((cur_iter + 1) % cfg.TRAIN.BATCH_SIZE_PER_TASK == 0):

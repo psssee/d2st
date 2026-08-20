@@ -33,6 +33,7 @@ TEST:
   DATASET: SSv2-Full
   SHOT: [1, 5]
   BATCH_SIZE: 1
+  EPISODE_SEED: 2026
   TEST_SET: val
   NUM_ENSEMBLE_VIEWS: 1
   SPATIAL_CROPS: cctltr
@@ -72,7 +73,9 @@ TASK_MATCH:
   TEMPERATURE: 1.0
   DISTANCE_SCALE: 16.0
   ALPHA_INIT: -4.0
-  USE_FOCUS_FEATURES: true
+  # Keep the two branches on the same raw D2ST feature space. FOCUS is fused
+  # as an independent temporal residual instead of changing TASK_MATCH input.
+  USE_FOCUS_FEATURES: false
 
 LOG_PERIOD: 200
 SOLVER:

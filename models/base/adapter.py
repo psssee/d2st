@@ -722,6 +722,9 @@ class ViT_CLIP(nn.Module):
             self.focus_alpha = nn.Parameter(
                 torch.tensor(float(getattr(cfg.FOCUS, "ALPHA_INIT", -4.0)))
             )
+            self.focus_detach_input = bool(
+                getattr(cfg.FOCUS, "DETACH_INPUT", False)
+            )
         self.task_match_enable = (
             hasattr(cfg, "TASK_MATCH") and getattr(cfg.TASK_MATCH, "ENABLE", False)
         )
@@ -743,6 +746,16 @@ class ViT_CLIP(nn.Module):
                 getattr(cfg.TASK_MATCH, "USE_FOCUS_FEATURES", True)
             )
         self.init_weights()
+
+    def get_fusion_weights(self):
+        weights = {}
+        if self.focus_enable:
+            weights["focus"] = torch.sigmoid(self.focus_alpha).detach().item()
+        if self.task_match_enable:
+            weights["task_match"] = torch.sigmoid(
+                self.task_match_alpha
+            ).detach().item()
+        return weights
 
     def init_weights(self):
         logger.info(f'load model from: {self.pretrained}')
@@ -859,46 +872,45 @@ class ViT_CLIP(nn.Module):
         # class_dist = OTAM_dist(dist) + OTAM_dist(rearrange(dist, 'q s n m -> q s m n'))
 
         base_logits = -class_dist
-        residual_logits = []
-        residual_gate_logits = []
         task_support = support_features_raw
         task_query = query_features_raw
+        focus_logits = None
         if self.focus_enable:
-            focus_support = self.focus_branch(support_features_raw, support_timestamps)
-            focus_query = self.focus_branch(query_features_raw, target_timestamps)
+            focus_support_input = support_features_raw
+            focus_query_input = query_features_raw
+            if self.focus_detach_input and self.task_match_enable:
+                focus_support_input = focus_support_input.detach()
+                focus_query_input = focus_query_input.detach()
+            focus_support = self.focus_branch(focus_support_input, support_timestamps)
+            focus_query = self.focus_branch(focus_query_input, target_timestamps)
             focus_class_dist = self._bimhm_class_dist(
                 focus_support,
                 focus_query,
                 support_labels,
             )
             focus_logits = -focus_class_dist
-            residual_logits.append(focus_logits)
-            residual_gate_logits.append(self.focus_alpha)
             if self.task_match_enable and self.task_match_use_focus:
                 task_support = focus_support
                 task_query = focus_query
 
+        task_logits = None
         if self.task_match_enable:
             task_logits = self.task_matcher(
                 task_support,
                 task_query,
                 support_labels,
             )
-            residual_logits.append(task_logits)
-            residual_gate_logits.append(self.task_match_alpha)
 
-        # Fuse optional branches in parallel. With one optional branch this is
-        # exactly the previous sigmoid residual gate. With both branches it
-        # avoids the later branch suppressing the earlier branch by order of
-        # application, while retaining a direct gradient path through D2ST.
+        # Each optional branch learns an independent residual from the same
+        # D2ST decision. This preserves single-branch behavior and avoids
+        # forcing FOCUS and TASK_MATCH to compete for a softmax budget.
         logits = base_logits
-        if residual_logits:
-            gate_logits = torch.cat(
-                [base_logits.new_zeros(1), torch.stack(residual_gate_logits)]
-            )
-            residual_weights = F.softmax(gate_logits, dim=0)[1:]
-            for weight, branch_logits in zip(residual_weights, residual_logits):
-                logits = logits + weight * (branch_logits - base_logits.detach())
+        if focus_logits is not None:
+            focus_weight = torch.sigmoid(self.focus_alpha)
+            logits = logits + focus_weight * (focus_logits - base_logits.detach())
+        if task_logits is not None:
+            task_weight = torch.sigmoid(self.task_match_alpha)
+            logits = logits + task_weight * (task_logits - base_logits.detach())
 
         return_dict = {'logits': logits, 'class_logits': class_logits}
         return return_dict

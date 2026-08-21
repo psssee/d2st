@@ -35,6 +35,30 @@ def _unwrap_meta_episode(task_dict):
     return {key: value[0] for key, value in task_dict.items()}
 
 
+def _log_fusion_state(model):
+    model_without_ddp = model.module if hasattr(model, "module") else model
+    fusion_module = next(
+        (
+            module
+            for module in model_without_ddp.modules()
+            if hasattr(module, "get_fusion_weights")
+        ),
+        None,
+    )
+    if fusion_module is None:
+        return
+
+    fusion_weights = fusion_module.get_fusion_weights()
+    if fusion_weights:
+        logger.info(
+            "Fusion weights: %s",
+            ", ".join(
+                "{}={:.6f}".format(name, value)
+                for name, value in fusion_weights.items()
+            ),
+        )
+
+
 def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val_meter, val_loader):
     # Enable train mode.
     model.train()
@@ -56,6 +80,15 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
     early_stop_patience = int(getattr(early_stop_cfg, "PATIENCE", 0))
     early_stop_min_delta = float(getattr(early_stop_cfg, "MIN_DELTA", 0.0))
     accumulation_steps = max(int(cfg.TRAIN.BATCH_SIZE_PER_TASK), 1)
+    normalize_accumulated_gradients = bool(
+        getattr(cfg.TRAIN, "NORMALIZE_ACCUMULATED_GRADIENTS", False)
+    )
+    gradient_scale = accumulation_steps if normalize_accumulated_gradients else 1
+    logger.info(
+        "Gradient accumulation: steps=%d, normalize=%s",
+        accumulation_steps,
+        normalize_accumulated_gradients,
+    )
 
     for cur_iter, task_dict in enumerate(train_loader):
         '''['support_set', 'support_labels', 'target_set', 'target_labels', 'real_target_labels', 'batch_class_list', 'real_support_labels']'''
@@ -75,6 +108,7 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
                 cur_epoch_save + cfg.TRAIN.NUM_FOLDS - 1,
                 cfg,
             )
+            _log_fusion_state(model)
             if val_acc > best_val_acc + early_stop_min_delta:
                 best_val_acc = val_acc
                 bad_eval_count = 0
@@ -148,9 +182,7 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
             loss.backward(retain_graph=False)
             optimizer.zero_grad()
             continue
-        # Average gradients across accumulated episodes so the effective
-        # meta-batch does not change the update magnitude.
-        (loss / accumulation_steps).backward(retain_graph=False)
+        (loss / gradient_scale).backward(retain_graph=False)
 
         # optimize
         if ((cur_iter + 1) % cfg.TRAIN.BATCH_SIZE_PER_TASK == 0):

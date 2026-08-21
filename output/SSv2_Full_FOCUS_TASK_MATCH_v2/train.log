@@ -1,0 +1,799 @@
+[08/21 08:26:32][INFO] train_net_few_shot:  251: Train with config:
+[08/21 08:26:32][INFO] train_net_few_shot:  252: {
+  "TASK_TYPE": "few_shot_action",
+  "PRETRAIN": {
+    "ENABLE": false
+  },
+  "LOCALIZATION": {
+    "ENABLE": false
+  },
+  "TRAIN": {
+    "ENABLE": true,
+    "DATASET": "SSv2-Full",
+    "BATCH_SIZE": 1,
+    "LOG_FILE": "train.log",
+    "EVAL_PERIOD": 2,
+    "NUM_FOLDS": 1,
+    "AUTO_RESUME": true,
+    "CHECKPOINT_PERIOD": 10,
+    "CHECKPOINT_FILE_PATH": "",
+    "CHECKPOINT_TYPE": "pytorch",
+    "CHECKPOINT_INFLATE": false,
+    "CHECKPOINT_PRE_PROCESS": {
+      "ENABLE": false
+    },
+    "FINE_TUNE": true,
+    "ONLY_LINEAR": false,
+    "LR_REDUCE": false,
+    "TRAIN_VAL_COMBINE": false,
+    "LOSS_FUNC": "cross_entropy",
+    "USE_CLASSIFICATION_VALUE": 2.0,
+    "GRADIENT_CHECKPOINT": true,
+    "NUM_CLASS": 64,
+    "META_BATCH": true,
+    "WAY": 5,
+    "SHOT": 1,
+    "QUERY_PER_CLASS": 1,
+    "QUERY_PER_CLASS_TEST": 1,
+    "NUM_TRAIN_TASKS": 30000,
+    "NUM_TEST_TASKS": 10000,
+    "VAL_FRE_ITER": 10000,
+    "BATCH_SIZE_PER_TASK": 4
+  },
+  "TEST": {
+    "ENABLE": true,
+    "DATASET": "SSv2-Full",
+    "BATCH_SIZE": 1,
+    "NUM_SPATIAL_CROPS": 1,
+    "SPATIAL_CROPS": "cctltr",
+    "NUM_ENSEMBLE_VIEWS": 1,
+    "LOG_FILE": "test.log",
+    "CHECKPOINT_FILE_PATH": "",
+    "CHECKPOINT_TYPE": "pytorch",
+    "AUTOMATIC_MULTI_SCALE_TEST": false,
+    "TEST_SET": "val",
+    "UPLOAD_CLASSIFIER_RESULTS": true,
+    "SHOT": [
+      1,
+      5
+    ],
+    "EPISODE_SEED": 2026
+  },
+  "VISUALIZATION": {
+    "ENABLE": false,
+    "NAME": "",
+    "FEATURE_MAPS": {
+      "ENABLE": false,
+      "BASE_OUTPUT_DIR": ""
+    }
+  },
+  "SUBMISSION": {
+    "ENABLE": false,
+    "SAVE_RESULTS_PATH": "test.json"
+  },
+  "DATA": {
+    "DATA_ROOT_DIR": "/mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/",
+    "ANNO_DIR": "config/ssv2_full/",
+    "NUM_INPUT_FRAMES": 8,
+    "NUM_INPUT_CHANNELS": 2304,
+    "SAMPLING_MODE": "interval_based",
+    "SAMPLING_RATE": 50,
+    "TRAIN_JITTER_SCALES": [
+      256,
+      256
+    ],
+    "TRAIN_CROP_SIZE": 224,
+    "TEST_SCALE": 256,
+    "TEST_CROP_SIZE": 224,
+    "MEAN": [
+      0.48145466,
+      0.4578275,
+      0.40821073
+    ],
+    "STD": [
+      0.26862954,
+      0.26130258,
+      0.27577711
+    ],
+    "MULTI_LABEL": false,
+    "ENSEMBLE_METHOD": "sum",
+    "TARGET_FPS": 12,
+    "MINUS_INTERVAL": false,
+    "FPS": 12,
+    "NORM_FEATURE": false,
+    "USE_AUG_FEATURE": false,
+    "AUG": false,
+    "LOAD_PROPS": false,
+    "TEMPORAL_SCALE": 256,
+    "LABELS_TYPE": "cls",
+    "LOAD_TYPE": "pickle",
+    "DOWNLOAD_FEATURE": true,
+    "VIDEO_EXT": ".webm",
+    "SAMPLING_UNIFORM": false,
+    "TEST_CENTER_CROP": true,
+    "CLIP_INTERVAL": 8
+  },
+  "MODEL": {
+    "NAME": "BaseVideoModel",
+    "EMA": {
+      "ENABLE": false,
+      "DECAY": 0.99996
+    }
+  },
+  "VIDEO": {
+    "BACKBONE": {
+      "DEPTH": null,
+      "META_ARCH": "Identity",
+      "NUM_FILTERS": null,
+      "NUM_INPUT_CHANNELS": 3,
+      "NUM_OUT_FEATURES": null,
+      "KERNEL_SIZE": null,
+      "DOWNSAMPLING": null,
+      "DOWNSAMPLING_TEMPORAL": null,
+      "NUM_STREAMS": 1,
+      "EXPANSION_RATIO": 2,
+      "BRANCH": {
+        "NAME": null
+      },
+      "STEM": {
+        "NAME": null
+      },
+      "NONLOCAL": {
+        "ENABLE": false,
+        "STAGES": [
+          5
+        ],
+        "MASK_ENABLE": false
+      },
+      "INITIALIZATION": null
+    },
+    "HEAD": {
+      "NAME": "BaseTemporalClassifier",
+      "ACTIVATION": "softmax",
+      "DROPOUT_RATE": 0.0,
+      "NUM_CLASSES": 200
+    }
+  },
+  "OPTIMIZER": {
+    "ADJUST_LR": false,
+    "BASE_LR": 0.002,
+    "LR_POLICY": "cosine",
+    "MAX_EPOCH": 300,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": "1e-3",
+    "WARMUP_EPOCHS": 10,
+    "WARMUP_START_LR": 0.0002,
+    "OPTIM_METHOD": "adam",
+    "DAMPENING": 0.0,
+    "NESTEROV": true
+  },
+  "BN": {
+    "WB_LOCK": false,
+    "FREEZE": false,
+    "WEIGHT_DECAY": 0.0,
+    "MOMENTUM": 0.1,
+    "EPS": "1e-3",
+    "SYNC": false
+  },
+  "DATA_LOADER": {
+    "NUM_WORKERS": 8,
+    "PIN_MEMORY": true,
+    "ENABLE_MULTI_THREAD_DECODE": true,
+    "COLLATE_FN": null
+  },
+  "NUM_GPUS": 1,
+  "SHARD_ID": 0,
+  "NUM_SHARDS": 1,
+  "RANDOM_SEED": 18,
+  "OUTPUT_DIR": "output/SSv2_Full_FOCUS_TASK_MATCH_v2",
+  "OUTPUT_CFG_FILE": "configuration.log",
+  "LOG_PERIOD": 200,
+  "DIST_BACKEND": "nccl",
+  "LOG_MODEL_INFO": false,
+  "LOG_CONFIG_INFO": true,
+  "OSS": {
+    "ENABLE": false,
+    "KEY": null,
+    "SECRET": null,
+    "ENDPOINT": null,
+    "CHECKPOINT_OUTPUT_PATH": null,
+    "SECONDARY_DATA_OSS": {
+      "ENABLE": false,
+      "KEY": null,
+      "SECRET": null,
+      "ENDPOINT": null,
+      "BUCKETS": [
+        ""
+      ]
+    }
+  },
+  "AUGMENTATION": {
+    "COLOR_AUG": false,
+    "BRIGHTNESS": 0.5,
+    "CONTRAST": 0.5,
+    "SATURATION": 0.5,
+    "HUE": 0.25,
+    "GRAYSCALE": 0.3,
+    "CONSISTENT": true,
+    "SHUFFLE": true,
+    "GRAY_FIRST": true,
+    "RATIO": [
+      0.857142857142857,
+      1.1666666666666667
+    ],
+    "USE_GPU": false,
+    "MIXUP": {
+      "ENABLE": false,
+      "ALPHA": 0.0,
+      "PROB": 1.0,
+      "MODE": "batch",
+      "SWITCH_PROB": 0.5
+    },
+    "CUTMIX": {
+      "ENABLE": false,
+      "ALPHA": 0.0,
+      "MINMAX": null
+    },
+    "RANDOM_ERASING": {
+      "ENABLE": false,
+      "PROB": 0.25,
+      "MODE": "const",
+      "COUNT": [
+        1,
+        1
+      ],
+      "NUM_SPLITS": 0,
+      "AREA_RANGE": [
+        0.02,
+        0.33
+      ],
+      "MIN_ASPECT": 0.3
+    },
+    "LABEL_SMOOTHING": 0.0,
+    "SSV2_FLIP": false,
+    "IS_SPLIT": false,
+    "NO_RANDOM_ERASE": true,
+    "SUPPORT_QUERY_DIFF": true
+  },
+  "PAI": false,
+  "USE_MULTISEG_VAL_DIST": false,
+  "DETECTION": {
+    "ENABLE": false
+  },
+  "TENSORBOARD": {
+    "ENABLE": false
+  },
+  "SOLVER": {
+    "BASE_LR": 0.001,
+    "LR_POLICY": "steps_with_relative_lrs",
+    "MAX_EPOCH": 10,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": "5e-4",
+    "WARMUP_EPOCHS": 1,
+    "WARMUP_START_LR": 0.0002,
+    "OPTIM_METHOD": "adam",
+    "DAMPENING": 0.0,
+    "NESTEROV": true,
+    "STEPS_ITER": 3000,
+    "STEPS": [
+      0,
+      4,
+      6,
+      8
+    ],
+    "LRS": [
+      1,
+      0.5,
+      0.1,
+      0.05
+    ]
+  },
+  "PRE_DOWNLOAD": {
+    "ENABLE": false
+  },
+  "SUPPORT_SHOT": 1,
+  "FOCUS": {
+    "ENABLE": true,
+    "HEADS": 8,
+    "DROPOUT": 0.1,
+    "GATE_INIT": -4.0,
+    "TEMPORAL_GATE_INIT": -4.0,
+    "ALPHA_INIT": -4.0
+  },
+  "TASK_MATCH": {
+    "ENABLE": true,
+    "HIDDEN_RATIO": 0.25,
+    "DROPOUT": 0.1,
+    "TEMPERATURE": 1.0,
+    "DISTANCE_SCALE": 16.0,
+    "ALPHA_INIT": -4.0,
+    "USE_FOCUS_FEATURES": false
+  },
+  "ADAPTER": {
+    "NAME": "ViT_CLIP",
+    "PRETRAINED": "ViT-B/16",
+    "WIDTH": 768,
+    "PATCH_SIZE": 16,
+    "LAYERS": 12,
+    "HEADS": 12,
+    "ADAPTER_SCALE": 0.25
+  },
+  "INIT_METHOD": "tcp://localhost:1111",
+  "CUDA_VISIBLE_DEVICES": "0"
+}
+
+[08/21 08:26:32][INFO] models.base.adapter:  748: load model from: ViT-B/16
+[08/21 08:26:34][INFO] models.base.adapter:  755: Missing keys: ['temporal_embedding', 'focus_alpha', 'task_match_alpha', 'transformer.resblocks.0.Adapter.down.weight', 'transformer.resblocks.0.Adapter.down.bias', 'transformer.resblocks.0.Adapter.pos_embed.weight', 'transformer.resblocks.0.Adapter.pos_embed.bias', 'transformer.resblocks.0.Adapter.s_ln.weight', 'transformer.resblocks.0.Adapter.s_ln.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.0.Adapter.t_ln.weight', 'transformer.resblocks.0.Adapter.t_ln.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.0.Adapter.up.weight', 'transformer.resblocks.0.Adapter.up.bias', 'transformer.resblocks.1.Adapter.down.weight', 'transformer.resblocks.1.Adapter.down.bias', 'transformer.resblocks.1.Adapter.pos_embed.weight', 'transformer.resblocks.1.Adapter.pos_embed.bias', 'transformer.resblocks.1.Adapter.s_ln.weight', 'transformer.resblocks.1.Adapter.s_ln.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.1.Adapter.t_ln.weight', 'transformer.resblocks.1.Adapter.t_ln.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.1.Adapter.up.weight', 'transformer.resblocks.1.Adapter.up.bias', 'transformer.resblocks.2.Adapter.down.weight', 'transformer.resblocks.2.Adapter.down.bias', 'transformer.resblocks.2.Adapter.pos_embed.weight', 'transformer.resblocks.2.Adapter.pos_embed.bias', 'transformer.resblocks.2.Adapter.s_ln.weight', 'transformer.resblocks.2.Adapter.s_ln.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.2.Adapter.t_ln.weight', 'transformer.resblocks.2.Adapter.t_ln.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.2.Adapter.up.weight', 'transformer.resblocks.2.Adapter.up.bias', 'transformer.resblocks.3.Adapter.down.weight', 'transformer.resblocks.3.Adapter.down.bias', 'transformer.resblocks.3.Adapter.pos_embed.weight', 'transformer.resblocks.3.Adapter.pos_embed.bias', 'transformer.resblocks.3.Adapter.s_ln.weight', 'transformer.resblocks.3.Adapter.s_ln.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.3.Adapter.t_ln.weight', 'transformer.resblocks.3.Adapter.t_ln.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.3.Adapter.up.weight', 'transformer.resblocks.3.Adapter.up.bias', 'transformer.resblocks.4.Adapter.down.weight', 'transformer.resblocks.4.Adapter.down.bias', 'transformer.resblocks.4.Adapter.pos_embed.weight', 'transformer.resblocks.4.Adapter.pos_embed.bias', 'transformer.resblocks.4.Adapter.s_ln.weight', 'transformer.resblocks.4.Adapter.s_ln.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.4.Adapter.t_ln.weight', 'transformer.resblocks.4.Adapter.t_ln.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.4.Adapter.up.weight', 'transformer.resblocks.4.Adapter.up.bias', 'transformer.resblocks.5.Adapter.down.weight', 'transformer.resblocks.5.Adapter.down.bias', 'transformer.resblocks.5.Adapter.pos_embed.weight', 'transformer.resblocks.5.Adapter.pos_embed.bias', 'transformer.resblocks.5.Adapter.s_ln.weight', 'transformer.resblocks.5.Adapter.s_ln.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.5.Adapter.t_ln.weight', 'transformer.resblocks.5.Adapter.t_ln.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.5.Adapter.up.weight', 'transformer.resblocks.5.Adapter.up.bias', 'transformer.resblocks.6.Adapter.down.weight', 'transformer.resblocks.6.Adapter.down.bias', 'transformer.resblocks.6.Adapter.pos_embed.weight', 'transformer.resblocks.6.Adapter.pos_embed.bias', 'transformer.resblocks.6.Adapter.s_ln.weight', 'transformer.resblocks.6.Adapter.s_ln.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.6.Adapter.t_ln.weight', 'transformer.resblocks.6.Adapter.t_ln.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.6.Adapter.up.weight', 'transformer.resblocks.6.Adapter.up.bias', 'transformer.resblocks.7.Adapter.down.weight', 'transformer.resblocks.7.Adapter.down.bias', 'transformer.resblocks.7.Adapter.pos_embed.weight', 'transformer.resblocks.7.Adapter.pos_embed.bias', 'transformer.resblocks.7.Adapter.s_ln.weight', 'transformer.resblocks.7.Adapter.s_ln.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.7.Adapter.t_ln.weight', 'transformer.resblocks.7.Adapter.t_ln.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.7.Adapter.up.weight', 'transformer.resblocks.7.Adapter.up.bias', 'transformer.resblocks.8.Adapter.down.weight', 'transformer.resblocks.8.Adapter.down.bias', 'transformer.resblocks.8.Adapter.pos_embed.weight', 'transformer.resblocks.8.Adapter.pos_embed.bias', 'transformer.resblocks.8.Adapter.s_ln.weight', 'transformer.resblocks.8.Adapter.s_ln.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.8.Adapter.t_ln.weight', 'transformer.resblocks.8.Adapter.t_ln.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.8.Adapter.up.weight', 'transformer.resblocks.8.Adapter.up.bias', 'transformer.resblocks.9.Adapter.down.weight', 'transformer.resblocks.9.Adapter.down.bias', 'transformer.resblocks.9.Adapter.pos_embed.weight', 'transformer.resblocks.9.Adapter.pos_embed.bias', 'transformer.resblocks.9.Adapter.s_ln.weight', 'transformer.resblocks.9.Adapter.s_ln.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.9.Adapter.t_ln.weight', 'transformer.resblocks.9.Adapter.t_ln.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.9.Adapter.up.weight', 'transformer.resblocks.9.Adapter.up.bias', 'transformer.resblocks.10.Adapter.down.weight', 'transformer.resblocks.10.Adapter.down.bias', 'transformer.resblocks.10.Adapter.pos_embed.weight', 'transformer.resblocks.10.Adapter.pos_embed.bias', 'transformer.resblocks.10.Adapter.s_ln.weight', 'transformer.resblocks.10.Adapter.s_ln.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.10.Adapter.t_ln.weight', 'transformer.resblocks.10.Adapter.t_ln.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.10.Adapter.up.weight', 'transformer.resblocks.10.Adapter.up.bias', 'transformer.resblocks.11.Adapter.down.weight', 'transformer.resblocks.11.Adapter.down.bias', 'transformer.resblocks.11.Adapter.pos_embed.weight', 'transformer.resblocks.11.Adapter.pos_embed.bias', 'transformer.resblocks.11.Adapter.s_ln.weight', 'transformer.resblocks.11.Adapter.s_ln.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.11.Adapter.t_ln.weight', 'transformer.resblocks.11.Adapter.t_ln.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.11.Adapter.up.weight', 'transformer.resblocks.11.Adapter.up.bias', 'classification_layer.weight', 'classification_layer.bias', 'focus_branch.temporal_alpha', 'focus_branch.norm.weight', 'focus_branch.norm.bias', 'focus_branch.time_proj.weight', 'focus_branch.time_proj.bias', 'focus_branch.temporal.self_attn.in_proj_weight', 'focus_branch.temporal.self_attn.in_proj_bias', 'focus_branch.temporal.self_attn.out_proj.weight', 'focus_branch.temporal.self_attn.out_proj.bias', 'focus_branch.temporal.linear1.weight', 'focus_branch.temporal.linear1.bias', 'focus_branch.temporal.linear2.weight', 'focus_branch.temporal.linear2.bias', 'focus_branch.temporal.norm1.weight', 'focus_branch.temporal.norm1.bias', 'focus_branch.temporal.norm2.weight', 'focus_branch.temporal.norm2.bias', 'focus_branch.gate.0.weight', 'focus_branch.gate.0.bias', 'focus_branch.gate.2.weight', 'focus_branch.gate.2.bias', 'task_matcher.context_norm.weight', 'task_matcher.context_norm.bias', 'task_matcher.generator.0.weight', 'task_matcher.generator.0.bias', 'task_matcher.generator.3.weight', 'task_matcher.generator.3.bias']
+[08/21 08:26:34][INFO] models.base.adapter:  756: Unexpected keys: []
+[08/21 08:26:34][INFO] models.base.adapter:  757: => loaded successfully 'ViT-B/16'
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.0.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.1.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.2.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.3.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.4.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.5.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.6.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.7.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.8.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.9.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.10.Adapter.up
+[08/21 08:26:34][INFO] models.base.adapter:  764: init:  transformer.resblocks.11.Adapter.up
+[08/21 08:26:34][INFO] train_net_few_shot:  256: Model:
+BaseVideoModel(
+  (model): ViT_CLIP(
+    (conv1): Conv2d(3, 768, kernel_size=(16, 16), stride=(16, 16), bias=False)
+    (ln_pre): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+    (transformer): Transformer(
+      (resblocks): ModuleList(
+        (0-11): 12 x ResidualAttentionBlock(
+          (ln_1): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+          (attn): MultiheadAttention(
+            (out_proj): NonDynamicallyQuantizableLinear(in_features=768, out_features=768, bias=True)
+          )
+          (ln_2): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+          (mlp): Sequential(
+            (c_fc): Linear(in_features=768, out_features=3072, bias=True)
+            (gelu): QuickGELU()
+            (c_proj): Linear(in_features=3072, out_features=768, bias=True)
+          )
+          (Adapter): ViT_D2ST_Adapter(
+            (down): Linear(in_features=768, out_features=192, bias=True)
+            (gelu1): GELU(approximate='none')
+            (pos_embed): Conv3d(192, 192, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), groups=192)
+            (s_ln): LayerNorm((192,), eps=1e-05, elementwise_affine=True, bias=True)
+            (s_attn): ViT_DeformAttention(
+              (conv_offset): Sequential(
+                (0): Conv3d(48, 48, kernel_size=(4, 5, 5), stride=(4, 3, 3), groups=48)
+                (1): LayerNormProxy(
+                  (norm): LayerNorm((48,), eps=1e-05, elementwise_affine=True, bias=True)
+                )
+                (2): GELU(approximate='none')
+                (3): Conv3d(48, 3, kernel_size=(1, 1, 1), stride=(1, 1, 1), bias=False)
+              )
+              (proj_q): Linear(in_features=192, out_features=192, bias=True)
+              (proj_k): Linear(in_features=192, out_features=192, bias=True)
+              (proj_v): Linear(in_features=192, out_features=192, bias=True)
+              (proj_out): Linear(in_features=192, out_features=192, bias=True)
+            )
+            (t_ln): LayerNorm((192,), eps=1e-05, elementwise_affine=True, bias=True)
+            (t_attn): ViT_DeformAttention(
+              (conv_offset): Sequential(
+                (0): Conv3d(48, 48, kernel_size=(1, 7, 7), stride=(1, 7, 7), groups=48)
+                (1): LayerNormProxy(
+                  (norm): LayerNorm((48,), eps=1e-05, elementwise_affine=True, bias=True)
+                )
+                (2): GELU(approximate='none')
+                (3): Conv3d(48, 3, kernel_size=(1, 1, 1), stride=(1, 1, 1), bias=False)
+              )
+              (proj_q): Linear(in_features=192, out_features=192, bias=True)
+              (proj_k): Linear(in_features=192, out_features=192, bias=True)
+              (proj_v): Linear(in_features=192, out_features=192, bias=True)
+              (proj_out): Linear(in_features=192, out_features=192, bias=True)
+            )
+            (gelu): GELU(approximate='none')
+            (up): Linear(in_features=192, out_features=768, bias=True)
+            (gelu2): GELU(approximate='none')
+          )
+        )
+      )
+    )
+    (ln_post): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+    (classification_layer): Linear(in_features=768, out_features=64, bias=True)
+    (focus_branch): D2STFocusResidual(
+      (norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+      (time_proj): Linear(in_features=1, out_features=768, bias=True)
+      (temporal): TransformerEncoderLayer(
+        (self_attn): MultiheadAttention(
+          (out_proj): NonDynamicallyQuantizableLinear(in_features=768, out_features=768, bias=True)
+        )
+        (linear1): Linear(in_features=768, out_features=1536, bias=True)
+        (dropout): Dropout(p=0.1, inplace=False)
+        (linear2): Linear(in_features=1536, out_features=768, bias=True)
+        (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+        (norm2): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+        (dropout1): Dropout(p=0.1, inplace=False)
+        (dropout2): Dropout(p=0.1, inplace=False)
+      )
+      (gate): Sequential(
+        (0): Linear(in_features=768, out_features=48, bias=True)
+        (1): GELU(approximate='none')
+        (2): Linear(in_features=48, out_features=1, bias=True)
+      )
+    )
+    (task_matcher): D2STTaskAwareMatcher(
+      (context_norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True, bias=True)
+      (generator): Sequential(
+        (0): Linear(in_features=768, out_features=192, bias=True)
+        (1): GELU(approximate='none')
+        (2): Dropout(p=0.1, inplace=False)
+        (3): Linear(in_features=192, out_features=64, bias=True)
+      )
+    )
+  )
+)
+[08/21 08:26:34][INFO] models.utils.optimizer:   82: Optimized parameters constructed. Parameters without weight decay: []
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:   97: Reading video list from file: train_few_shot.txt
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:  127: Loading SSv2-Full dataset list for split 'train'...
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:   47: loaded 67013 videos from train dataset: SSv2-Full !
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:  153: Dataset SSv2-Full split train loaded. Length 67013.
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:   97: Reading video list from file: test_few_shot.txt
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:  127: Loading SSv2-Full dataset list for split 'test'...
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:   47: loaded 2857 videos from test dataset: SSv2-Full !
+[08/21 08:26:34][INFO] datasets.base.few_shot_dataset:  153: Dataset SSv2-Full split test loaded. Length 2857.
+[08/21 08:26:34][INFO] train_net_few_shot:  278: Start epoch: 1
+[08/21 08:26:34][INFO] train_net_few_shot:  307: Number of total parameters: 98057700, tunable parameters: 12260580
+[08/21 08:26:34][INFO] train_net_few_shot:   45: Norm training: True
+[08/21 08:27:54][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "200/30000", "loss": 9.886407, "lr": 0.000253, "top1_acc": 33.799999}
+[08/21 08:29:12][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "400/30000", "loss": 9.217491, "lr": 0.000306, "top1_acc": 41.900000}
+[08/21 08:30:30][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "600/30000", "loss": 8.473621, "lr": 0.000360, "top1_acc": 45.000000}
+[08/21 08:31:48][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "800/30000", "loss": 7.594944, "lr": 0.000413, "top1_acc": 48.100000}
+[08/21 08:33:07][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "1000/30000", "loss": 7.174314, "lr": 0.000466, "top1_acc": 50.100000}
+[08/21 08:34:25][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "1200/30000", "loss": 6.845366, "lr": 0.000520, "top1_acc": 52.200001}
+[08/21 08:35:43][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "1400/30000", "loss": 6.312963, "lr": 0.000573, "top1_acc": 56.600001}
+[08/21 08:37:01][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "1600/30000", "loss": 5.715093, "lr": 0.000626, "top1_acc": 59.700001}
+[08/21 08:38:19][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "1800/30000", "loss": 5.701290, "lr": 0.000680, "top1_acc": 58.100001}
+[08/21 08:39:38][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "2000/30000", "loss": 5.588552, "lr": 0.000733, "top1_acc": 60.100001}
+[08/21 08:40:56][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "2200/30000", "loss": 5.382701, "lr": 0.000786, "top1_acc": 63.400001}
+[08/21 08:42:14][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "2400/30000", "loss": 5.335050, "lr": 0.000840, "top1_acc": 60.900001}
+[08/21 08:43:32][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "2600/30000", "loss": 5.126858, "lr": 0.000893, "top1_acc": 61.100001}
+[08/21 08:44:50][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "2800/30000", "loss": 5.184968, "lr": 0.000946, "top1_acc": 60.900001}
+[08/21 08:46:08][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "3000/30000", "loss": 4.922290, "lr": 0.001000, "top1_acc": 65.200001}
+[08/21 08:47:27][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "3200/30000", "loss": 4.899063, "lr": 0.001000, "top1_acc": 62.300001}
+[08/21 08:48:45][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "3400/30000", "loss": 4.514008, "lr": 0.001000, "top1_acc": 65.500001}
+[08/21 08:50:03][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "3600/30000", "loss": 4.527889, "lr": 0.001000, "top1_acc": 64.300001}
+[08/21 08:51:22][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "3800/30000", "loss": 4.296851, "lr": 0.001000, "top1_acc": 69.400002}
+[08/21 08:52:41][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "4000/30000", "loss": 4.222245, "lr": 0.001000, "top1_acc": 67.600001}
+[08/21 08:53:54][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 54100, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/96464.webm
+[08/21 08:54:00][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "4200/30000", "loss": 4.283369, "lr": 0.001000, "top1_acc": 67.300001}
+[08/21 08:55:19][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "4400/30000", "loss": 4.240753, "lr": 0.001000, "top1_acc": 69.500002}
+[08/21 08:56:39][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "4600/30000", "loss": 4.221342, "lr": 0.001000, "top1_acc": 68.400001}
+[08/21 08:57:58][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "4800/30000", "loss": 4.059984, "lr": 0.001000, "top1_acc": 67.600001}
+[08/21 08:59:17][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "5000/30000", "loss": 4.206876, "lr": 0.001000, "top1_acc": 70.200001}
+[08/21 09:00:36][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "5200/30000", "loss": 3.902708, "lr": 0.001000, "top1_acc": 71.600001}
+[08/21 09:01:54][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "5400/30000", "loss": 3.831923, "lr": 0.001000, "top1_acc": 70.000002}
+[08/21 09:03:12][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "5600/30000", "loss": 3.835915, "lr": 0.001000, "top1_acc": 68.700001}
+[08/21 09:04:31][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "5800/30000", "loss": 3.486332, "lr": 0.001000, "top1_acc": 72.500001}
+[08/21 09:05:49][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "6000/30000", "loss": 3.632908, "lr": 0.001000, "top1_acc": 72.600001}
+[08/21 09:07:08][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "6200/30000", "loss": 3.369385, "lr": 0.001000, "top1_acc": 72.000001}
+[08/21 09:08:26][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "6400/30000", "loss": 3.608672, "lr": 0.001000, "top1_acc": 70.300002}
+[08/21 09:09:44][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "6600/30000", "loss": 3.519569, "lr": 0.001000, "top1_acc": 71.800001}
+[08/21 09:11:02][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "6800/30000", "loss": 3.167702, "lr": 0.001000, "top1_acc": 73.700001}
+[08/21 09:12:20][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "7000/30000", "loss": 3.182354, "lr": 0.001000, "top1_acc": 74.700002}
+[08/21 09:13:38][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "7200/30000", "loss": 3.338410, "lr": 0.001000, "top1_acc": 73.500001}
+[08/21 09:14:57][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "7400/30000", "loss": 3.403131, "lr": 0.001000, "top1_acc": 72.800001}
+[08/21 09:16:15][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "7600/30000", "loss": 3.153929, "lr": 0.001000, "top1_acc": 76.500002}
+[08/21 09:17:33][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "7800/30000", "loss": 3.090095, "lr": 0.001000, "top1_acc": 75.500001}
+[08/21 09:18:51][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "8000/30000", "loss": 3.198336, "lr": 0.001000, "top1_acc": 75.900002}
+[08/21 09:20:09][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "8200/30000", "loss": 3.176090, "lr": 0.001000, "top1_acc": 75.400001}
+[08/21 09:21:28][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "8400/30000", "loss": 3.173541, "lr": 0.001000, "top1_acc": 74.000001}
+[08/21 09:22:46][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "8600/30000", "loss": 2.891094, "lr": 0.001000, "top1_acc": 75.900001}
+[08/21 09:24:04][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "8800/30000", "loss": 2.937683, "lr": 0.001000, "top1_acc": 74.800001}
+[08/21 09:25:22][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "9000/30000", "loss": 2.877109, "lr": 0.001000, "top1_acc": 76.500001}
+[08/21 09:26:40][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "9200/30000", "loss": 2.982061, "lr": 0.001000, "top1_acc": 76.500001}
+[08/21 09:27:58][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "9400/30000", "loss": 2.988574, "lr": 0.001000, "top1_acc": 75.700001}
+[08/21 09:29:17][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "9600/30000", "loss": 2.834842, "lr": 0.001000, "top1_acc": 76.600001}
+[08/21 09:30:35][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "9800/30000", "loss": 2.801963, "lr": 0.001000, "top1_acc": 78.400001}
+[08/21 09:31:57][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 09:32:05][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 09:32:16][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "200/10000", "top1_acc": 60.600001}
+[08/21 09:32:39][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "400/10000", "top1_acc": 56.300000}
+[08/21 09:33:01][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 182], Vid path: 9
+[08/21 09:33:01][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "600/10000", "top1_acc": 60.000001}
+[08/21 09:33:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "800/10000", "top1_acc": 61.200001}
+[08/21 09:33:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1000/10000", "top1_acc": 63.300001}
+[08/21 09:34:04][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [64, 185], Vid path: 9
+[08/21 09:34:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1200/10000", "top1_acc": 58.000000}
+[08/21 09:34:32][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1400/10000", "top1_acc": 59.500001}
+[08/21 09:34:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1600/10000", "top1_acc": 58.600001}
+[08/21 09:35:18][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1800/10000", "top1_acc": 61.200001}
+[08/21 09:35:42][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2000/10000", "top1_acc": 60.100001}
+[08/21 09:35:59][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 09:36:05][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2200/10000", "top1_acc": 61.400001}
+[08/21 09:36:23][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [86, 185], Vid path: 9
+[08/21 09:36:27][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2400/10000", "top1_acc": 60.300001}
+[08/21 09:36:51][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2600/10000", "top1_acc": 58.100001}
+[08/21 09:37:14][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2800/10000", "top1_acc": 61.500001}
+[08/21 09:37:37][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3000/10000", "top1_acc": 61.500001}
+[08/21 09:38:01][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3200/10000", "top1_acc": 59.600001}
+[08/21 09:38:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3400/10000", "top1_acc": 60.200001}
+[08/21 09:38:38][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 52], Vid path: 9
+[08/21 09:38:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3600/10000", "top1_acc": 59.000001}
+[08/21 09:39:11][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3800/10000", "top1_acc": 60.600001}
+[08/21 09:39:30][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [116, 185], Vid path: 9
+[08/21 09:39:34][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4000/10000", "top1_acc": 62.400001}
+[08/21 09:39:56][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 09:39:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4200/10000", "top1_acc": 61.300001}
+[08/21 09:40:20][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4400/10000", "top1_acc": 59.800001}
+[08/21 09:40:43][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4600/10000", "top1_acc": 60.600001}
+[08/21 09:41:06][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4800/10000", "top1_acc": 61.200001}
+[08/21 09:41:28][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5000/10000", "top1_acc": 61.300001}
+[08/21 09:41:44][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [179, 185], Vid path: 9
+[08/21 09:41:48][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 88], Vid path: 9
+[08/21 09:41:51][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5200/10000", "top1_acc": 59.900001}
+[08/21 09:42:15][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5400/10000", "top1_acc": 59.800001}
+[08/21 09:42:37][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5600/10000", "top1_acc": 58.300001}
+[08/21 09:42:47][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [159, 185], Vid path: 9
+[08/21 09:43:00][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5800/10000", "top1_acc": 59.400001}
+[08/21 09:43:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6000/10000", "top1_acc": 61.000001}
+[08/21 09:43:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6200/10000", "top1_acc": 59.600001}
+[08/21 09:44:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6400/10000", "top1_acc": 59.500001}
+[08/21 09:44:32][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6600/10000", "top1_acc": 60.000001}
+[08/21 09:44:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6800/10000", "top1_acc": 59.600001}
+[08/21 09:45:18][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7000/10000", "top1_acc": 60.700001}
+[08/21 09:45:40][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7200/10000", "top1_acc": 61.000001}
+[08/21 09:46:03][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7400/10000", "top1_acc": 61.000001}
+[08/21 09:46:26][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7600/10000", "top1_acc": 60.900001}
+[08/21 09:46:49][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7800/10000", "top1_acc": 59.000001}
+[08/21 09:47:11][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8000/10000", "top1_acc": 63.200001}
+[08/21 09:47:34][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8200/10000", "top1_acc": 59.200001}
+[08/21 09:47:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8400/10000", "top1_acc": 59.300001}
+[08/21 09:48:19][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8600/10000", "top1_acc": 61.900001}
+[08/21 09:48:42][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8800/10000", "top1_acc": 60.400001}
+[08/21 09:49:05][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9000/10000", "top1_acc": 57.700001}
+[08/21 09:49:28][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 09:49:28][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9200/10000", "top1_acc": 61.200001}
+[08/21 09:49:51][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9400/10000", "top1_acc": 61.400001}
+[08/21 09:50:08][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [81, 185], Vid path: 9
+[08/21 09:50:14][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9600/10000", "top1_acc": 62.100001}
+[08/21 09:50:36][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9800/10000", "top1_acc": 57.000001}
+[08/21 09:50:59][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "10000/10000", "top1_acc": 60.000001}
+[08/21 09:50:59][INFO] utils.logging:   91: {"RAM": "18.62/125.63 GB", "_type": "val_epoch", "epoch": "1", "gpu_mem": "1.86 GB", "top1_acc": 60.214001}
+[08/21 09:50:59][INFO] train_net_few_shot:   91: New best validation accuracy: 60.2140; checkpoint=output/SSv2_Full_FOCUS_TASK_MATCH_v2/checkpoints/checkpoint_best.pyth
+[08/21 09:50:59][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "10000/30000", "loss": 2.751331, "lr": 0.001000, "top1_acc": 78.200002}
+[08/21 09:52:20][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "10200/30000", "loss": 2.752092, "lr": 0.001000, "top1_acc": 77.400002}
+[08/21 09:53:38][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "10400/30000", "loss": 2.824504, "lr": 0.001000, "top1_acc": 77.800001}
+[08/21 09:54:56][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "10600/30000", "loss": 2.633060, "lr": 0.001000, "top1_acc": 76.700002}
+[08/21 09:56:14][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "10800/30000", "loss": 2.845474, "lr": 0.001000, "top1_acc": 76.900001}
+[08/21 09:57:32][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "11000/30000", "loss": 2.759153, "lr": 0.001000, "top1_acc": 78.100001}
+[08/21 09:58:50][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "11200/30000", "loss": 2.677748, "lr": 0.001000, "top1_acc": 78.500001}
+[08/21 10:00:09][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "11400/30000", "loss": 2.653599, "lr": 0.001000, "top1_acc": 79.800001}
+[08/21 10:01:27][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "11600/30000", "loss": 2.584422, "lr": 0.001000, "top1_acc": 79.900001}
+[08/21 10:02:45][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "11800/30000", "loss": 2.622525, "lr": 0.001000, "top1_acc": 76.100001}
+[08/21 10:04:03][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "12000/30000", "loss": 2.749752, "lr": 0.001000, "top1_acc": 78.200001}
+[08/21 10:05:21][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "12200/30000", "loss": 2.298413, "lr": 0.000500, "top1_acc": 81.000001}
+[08/21 10:06:39][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "12400/30000", "loss": 2.234439, "lr": 0.000500, "top1_acc": 83.100001}
+[08/21 10:07:58][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "12600/30000", "loss": 2.270029, "lr": 0.000500, "top1_acc": 80.400001}
+[08/21 10:09:16][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "12800/30000", "loss": 2.281808, "lr": 0.000500, "top1_acc": 80.400001}
+[08/21 10:10:34][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "13000/30000", "loss": 2.098459, "lr": 0.000500, "top1_acc": 81.500001}
+[08/21 10:11:52][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "13200/30000", "loss": 2.085923, "lr": 0.000500, "top1_acc": 82.600001}
+[08/21 10:13:10][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "13400/30000", "loss": 2.116523, "lr": 0.000500, "top1_acc": 83.300001}
+[08/21 10:14:28][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "13600/30000", "loss": 2.155241, "lr": 0.000500, "top1_acc": 82.100001}
+[08/21 10:15:46][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "13800/30000", "loss": 1.996023, "lr": 0.000500, "top1_acc": 83.200001}
+[08/21 10:17:04][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "14000/30000", "loss": 2.079871, "lr": 0.000500, "top1_acc": 82.200001}
+[08/21 10:18:22][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "14200/30000", "loss": 1.921970, "lr": 0.000500, "top1_acc": 84.400001}
+[08/21 10:19:36][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 54100, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/96464.webm
+[08/21 10:19:41][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "14400/30000", "loss": 2.065664, "lr": 0.000500, "top1_acc": 83.600001}
+[08/21 10:20:59][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "14600/30000", "loss": 1.940100, "lr": 0.000500, "top1_acc": 84.500001}
+[08/21 10:21:43][INFO] datasets.base.few_shot_dataset:  500: Error at decoding. Vid index: 54100, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/96464.webm
+[08/21 10:22:17][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "14800/30000", "loss": 1.844578, "lr": 0.000500, "top1_acc": 84.700001}
+[08/21 10:23:35][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "15000/30000", "loss": 1.980433, "lr": 0.000500, "top1_acc": 84.700001}
+[08/21 10:24:53][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "15200/30000", "loss": 2.044269, "lr": 0.000500, "top1_acc": 81.600001}
+[08/21 10:26:11][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "15400/30000", "loss": 1.957562, "lr": 0.000500, "top1_acc": 85.100001}
+[08/21 10:27:29][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "15600/30000", "loss": 2.030538, "lr": 0.000500, "top1_acc": 80.800001}
+[08/21 10:28:47][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "15800/30000", "loss": 1.922127, "lr": 0.000500, "top1_acc": 83.000001}
+[08/21 10:30:06][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "16000/30000", "loss": 1.795569, "lr": 0.000500, "top1_acc": 85.600001}
+[08/21 10:31:24][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "16200/30000", "loss": 1.769719, "lr": 0.000500, "top1_acc": 85.200001}
+[08/21 10:32:42][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "16400/30000", "loss": 1.752867, "lr": 0.000500, "top1_acc": 84.200001}
+[08/21 10:34:00][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "16600/30000", "loss": 1.931146, "lr": 0.000500, "top1_acc": 84.100001}
+[08/21 10:35:18][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "16800/30000", "loss": 1.838099, "lr": 0.000500, "top1_acc": 83.900001}
+[08/21 10:36:36][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "17000/30000", "loss": 1.794837, "lr": 0.000500, "top1_acc": 83.100001}
+[08/21 10:37:54][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "17200/30000", "loss": 1.725594, "lr": 0.000500, "top1_acc": 84.300001}
+[08/21 10:39:13][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "17400/30000", "loss": 1.816517, "lr": 0.000500, "top1_acc": 83.600001}
+[08/21 10:40:31][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "17600/30000", "loss": 1.664416, "lr": 0.000500, "top1_acc": 84.000001}
+[08/21 10:41:49][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "17800/30000", "loss": 1.955432, "lr": 0.000500, "top1_acc": 83.500001}
+[08/21 10:43:07][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "18000/30000", "loss": 1.781529, "lr": 0.000500, "top1_acc": 86.700001}
+[08/21 10:44:25][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "18200/30000", "loss": 1.713227, "lr": 0.000100, "top1_acc": 86.100001}
+[08/21 10:45:43][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "18400/30000", "loss": 1.622111, "lr": 0.000100, "top1_acc": 85.400001}
+[08/21 10:47:01][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "18600/30000", "loss": 1.475818, "lr": 0.000100, "top1_acc": 87.400001}
+[08/21 10:48:20][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "18800/30000", "loss": 1.327509, "lr": 0.000100, "top1_acc": 86.800001}
+[08/21 10:49:38][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "19000/30000", "loss": 1.391197, "lr": 0.000100, "top1_acc": 87.900001}
+[08/21 10:50:56][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "19200/30000", "loss": 1.428682, "lr": 0.000100, "top1_acc": 86.800001}
+[08/21 10:52:14][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "19400/30000", "loss": 1.532080, "lr": 0.000100, "top1_acc": 85.300001}
+[08/21 10:53:32][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "19600/30000", "loss": 1.541263, "lr": 0.000100, "top1_acc": 84.600001}
+[08/21 10:54:51][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "19800/30000", "loss": 1.439616, "lr": 0.000100, "top1_acc": 88.400001}
+[08/21 10:56:13][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 10:56:20][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 10:56:32][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "200/10000", "top1_acc": 63.900001}
+[08/21 10:56:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "400/10000", "top1_acc": 62.800001}
+[08/21 10:57:17][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 182], Vid path: 9
+[08/21 10:57:18][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "600/10000", "top1_acc": 63.400002}
+[08/21 10:57:41][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "800/10000", "top1_acc": 66.400002}
+[08/21 10:58:04][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1000/10000", "top1_acc": 67.600001}
+[08/21 10:58:21][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [64, 185], Vid path: 9
+[08/21 10:58:27][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1200/10000", "top1_acc": 62.000001}
+[08/21 10:58:50][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1400/10000", "top1_acc": 64.500001}
+[08/21 10:59:13][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1600/10000", "top1_acc": 64.200001}
+[08/21 10:59:36][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1800/10000", "top1_acc": 64.000001}
+[08/21 10:59:59][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2000/10000", "top1_acc": 64.700001}
+[08/21 11:00:17][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 11:00:22][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2200/10000", "top1_acc": 63.200001}
+[08/21 11:00:41][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [86, 185], Vid path: 9
+[08/21 11:00:45][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2400/10000", "top1_acc": 64.100001}
+[08/21 11:01:08][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2600/10000", "top1_acc": 65.000001}
+[08/21 11:01:30][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2800/10000", "top1_acc": 66.600001}
+[08/21 11:01:53][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3000/10000", "top1_acc": 65.000001}
+[08/21 11:02:16][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3200/10000", "top1_acc": 62.900001}
+[08/21 11:02:39][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3400/10000", "top1_acc": 64.100001}
+[08/21 11:02:53][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 52], Vid path: 9
+[08/21 11:03:02][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3600/10000", "top1_acc": 64.500001}
+[08/21 11:03:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3800/10000", "top1_acc": 62.900001}
+[08/21 11:03:43][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [116, 185], Vid path: 9
+[08/21 11:03:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4000/10000", "top1_acc": 66.000001}
+[08/21 11:04:09][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 11:04:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4200/10000", "top1_acc": 64.600001}
+[08/21 11:04:33][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4400/10000", "top1_acc": 65.200001}
+[08/21 11:04:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4600/10000", "top1_acc": 64.800001}
+[08/21 11:05:18][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4800/10000", "top1_acc": 67.000001}
+[08/21 11:05:41][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5000/10000", "top1_acc": 63.900001}
+[08/21 11:05:57][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [179, 185], Vid path: 9
+[08/21 11:06:01][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 88], Vid path: 9
+[08/21 11:06:04][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5200/10000", "top1_acc": 66.300002}
+[08/21 11:06:27][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5400/10000", "top1_acc": 63.800001}
+[08/21 11:06:50][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5600/10000", "top1_acc": 62.800001}
+[08/21 11:07:00][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [159, 185], Vid path: 9
+[08/21 11:07:13][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5800/10000", "top1_acc": 66.000002}
+[08/21 11:07:36][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6000/10000", "top1_acc": 63.700001}
+[08/21 11:07:59][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6200/10000", "top1_acc": 64.500001}
+[08/21 11:08:22][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6400/10000", "top1_acc": 64.300001}
+[08/21 11:08:44][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6600/10000", "top1_acc": 63.400001}
+[08/21 11:09:08][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6800/10000", "top1_acc": 63.400001}
+[08/21 11:09:31][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7000/10000", "top1_acc": 65.900001}
+[08/21 11:09:54][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7200/10000", "top1_acc": 63.800001}
+[08/21 11:10:17][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7400/10000", "top1_acc": 64.900001}
+[08/21 11:10:40][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7600/10000", "top1_acc": 67.100001}
+[08/21 11:11:03][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7800/10000", "top1_acc": 63.800001}
+[08/21 11:11:26][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8000/10000", "top1_acc": 65.500001}
+[08/21 11:11:49][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8200/10000", "top1_acc": 65.500001}
+[08/21 11:12:11][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8400/10000", "top1_acc": 62.700002}
+[08/21 11:12:34][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8600/10000", "top1_acc": 64.800001}
+[08/21 11:12:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8800/10000", "top1_acc": 64.700001}
+[08/21 11:13:20][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9000/10000", "top1_acc": 63.600001}
+[08/21 11:13:42][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 11:13:43][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9200/10000", "top1_acc": 67.800001}
+[08/21 11:14:05][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9400/10000", "top1_acc": 65.300001}
+[08/21 11:14:22][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [81, 185], Vid path: 9
+[08/21 11:14:28][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9600/10000", "top1_acc": 66.600001}
+[08/21 11:14:51][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9800/10000", "top1_acc": 62.800001}
+[08/21 11:15:13][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "10000/10000", "top1_acc": 62.500001}
+[08/21 11:15:13][INFO] utils.logging:   91: {"RAM": "18.33/125.63 GB", "_type": "val_epoch", "epoch": "2", "gpu_mem": "1.86 GB", "top1_acc": 64.576001}
+[08/21 11:15:15][INFO] train_net_few_shot:   91: New best validation accuracy: 64.5760; checkpoint=output/SSv2_Full_FOCUS_TASK_MATCH_v2/checkpoints/checkpoint_best.pyth
+[08/21 11:15:16][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "20000/30000", "loss": 1.477976, "lr": 0.000100, "top1_acc": 86.400001}
+[08/21 11:16:34][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "20200/30000", "loss": 1.425719, "lr": 0.000100, "top1_acc": 87.700001}
+[08/21 11:17:52][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "20400/30000", "loss": 1.429089, "lr": 0.000100, "top1_acc": 85.800001}
+[08/21 11:19:10][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "20600/30000", "loss": 1.382483, "lr": 0.000100, "top1_acc": 88.300001}
+[08/21 11:20:29][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "20800/30000", "loss": 1.562054, "lr": 0.000100, "top1_acc": 87.100001}
+[08/21 11:21:47][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "21000/30000", "loss": 1.468621, "lr": 0.000100, "top1_acc": 86.000001}
+[08/21 11:23:05][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "21200/30000", "loss": 1.563989, "lr": 0.000100, "top1_acc": 85.100001}
+[08/21 11:24:23][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "21400/30000", "loss": 1.547214, "lr": 0.000100, "top1_acc": 85.500001}
+[08/21 11:25:41][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "21600/30000", "loss": 1.378351, "lr": 0.000100, "top1_acc": 86.500001}
+[08/21 11:26:59][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "21800/30000", "loss": 1.353046, "lr": 0.000100, "top1_acc": 86.900001}
+[08/21 11:28:18][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "22000/30000", "loss": 1.453294, "lr": 0.000100, "top1_acc": 87.700001}
+[08/21 11:29:36][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "22200/30000", "loss": 1.276007, "lr": 0.000100, "top1_acc": 87.500001}
+[08/21 11:30:54][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "22400/30000", "loss": 1.319225, "lr": 0.000100, "top1_acc": 88.300001}
+[08/21 11:32:12][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "22600/30000", "loss": 1.279632, "lr": 0.000100, "top1_acc": 87.900001}
+[08/21 11:32:36][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 54100, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/96464.webm
+[08/21 11:33:30][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "22800/30000", "loss": 1.372825, "lr": 0.000100, "top1_acc": 88.900001}
+[08/21 11:34:49][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "23000/30000", "loss": 1.420697, "lr": 0.000100, "top1_acc": 85.700001}
+[08/21 11:36:07][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "23200/30000", "loss": 1.454743, "lr": 0.000100, "top1_acc": 88.500001}
+[08/21 11:37:25][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "23400/30000", "loss": 1.309190, "lr": 0.000100, "top1_acc": 87.500001}
+[08/21 11:38:43][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "23600/30000", "loss": 1.273166, "lr": 0.000100, "top1_acc": 87.900001}
+[08/21 11:40:01][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "23800/30000", "loss": 1.145705, "lr": 0.000100, "top1_acc": 89.600001}
+[08/21 11:41:19][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "24000/30000", "loss": 1.358517, "lr": 0.000100, "top1_acc": 88.200001}
+[08/21 11:42:37][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "24200/30000", "loss": 1.292564, "lr": 0.000050, "top1_acc": 87.700001}
+[08/21 11:43:56][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "24400/30000", "loss": 1.226544, "lr": 0.000050, "top1_acc": 87.800001}
+[08/21 11:45:14][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "24600/30000", "loss": 1.329451, "lr": 0.000050, "top1_acc": 87.800001}
+[08/21 11:46:32][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "24800/30000", "loss": 1.191120, "lr": 0.000050, "top1_acc": 90.100001}
+[08/21 11:47:50][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "25000/30000", "loss": 1.219546, "lr": 0.000050, "top1_acc": 89.900001}
+[08/21 11:49:08][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "25200/30000", "loss": 1.288820, "lr": 0.000050, "top1_acc": 88.500001}
+[08/21 11:50:26][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "25400/30000", "loss": 1.272397, "lr": 0.000050, "top1_acc": 89.200001}
+[08/21 11:51:45][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "25600/30000", "loss": 1.216808, "lr": 0.000050, "top1_acc": 89.900001}
+[08/21 11:53:03][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "25800/30000", "loss": 1.153627, "lr": 0.000050, "top1_acc": 89.300001}
+[08/21 11:54:21][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "26000/30000", "loss": 1.231027, "lr": 0.000050, "top1_acc": 90.200001}
+[08/21 11:55:39][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "26200/30000", "loss": 1.092040, "lr": 0.000050, "top1_acc": 88.500001}
+[08/21 11:56:57][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "26400/30000", "loss": 1.220989, "lr": 0.000050, "top1_acc": 89.900001}
+[08/21 11:58:15][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "26600/30000", "loss": 1.304923, "lr": 0.000050, "top1_acc": 87.800001}
+[08/21 11:59:33][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "26800/30000", "loss": 1.210021, "lr": 0.000050, "top1_acc": 87.900001}
+[08/21 12:00:52][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "27000/30000", "loss": 1.264089, "lr": 0.000050, "top1_acc": 86.900001}
+[08/21 12:02:10][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "27200/30000", "loss": 1.158037, "lr": 0.000050, "top1_acc": 90.100001}
+[08/21 12:02:21][INFO] datasets.base.few_shot_dataset:  500: Error at decoding. Vid index: 54100, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/96464.webm
+[08/21 12:03:28][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "27400/30000", "loss": 1.069308, "lr": 0.000050, "top1_acc": 89.800001}
+[08/21 12:04:46][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "27600/30000", "loss": 1.175857, "lr": 0.000050, "top1_acc": 89.600001}
+[08/21 12:06:04][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "27800/30000", "loss": 1.082796, "lr": 0.000050, "top1_acc": 89.700001}
+[08/21 12:07:22][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "28000/30000", "loss": 1.154919, "lr": 0.000050, "top1_acc": 88.900001}
+[08/21 12:08:41][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "28200/30000", "loss": 1.240561, "lr": 0.000050, "top1_acc": 88.500001}
+[08/21 12:09:59][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "28400/30000", "loss": 1.223844, "lr": 0.000050, "top1_acc": 88.900001}
+[08/21 12:11:17][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "28600/30000", "loss": 1.197145, "lr": 0.000050, "top1_acc": 90.600001}
+[08/21 12:12:35][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "28800/30000", "loss": 1.137783, "lr": 0.000050, "top1_acc": 88.800001}
+[08/21 12:13:53][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "29000/30000", "loss": 1.301843, "lr": 0.000050, "top1_acc": 87.600001}
+[08/21 12:15:11][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "29200/30000", "loss": 1.249460, "lr": 0.000050, "top1_acc": 88.400001}
+[08/21 12:16:29][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "29400/30000", "loss": 1.187117, "lr": 0.000050, "top1_acc": 88.100001}
+[08/21 12:17:48][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "29600/30000", "loss": 1.159951, "lr": 0.000050, "top1_acc": 88.900001}
+[08/21 12:19:06][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "29800/30000", "loss": 1.136435, "lr": 0.000050, "top1_acc": 88.700001}
+[08/21 12:20:28][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 12:20:35][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 12:20:46][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "200/10000", "top1_acc": 65.400001}
+[08/21 12:21:09][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "400/10000", "top1_acc": 63.100001}
+[08/21 12:21:31][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 182], Vid path: 9
+[08/21 12:21:31][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "600/10000", "top1_acc": 63.900001}
+[08/21 12:21:54][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "800/10000", "top1_acc": 64.800001}
+[08/21 12:22:16][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1000/10000", "top1_acc": 68.300001}
+[08/21 12:22:33][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [64, 185], Vid path: 9
+[08/21 12:22:39][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1200/10000", "top1_acc": 64.500001}
+[08/21 12:23:01][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1400/10000", "top1_acc": 63.800001}
+[08/21 12:23:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1600/10000", "top1_acc": 64.300001}
+[08/21 12:23:46][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "1800/10000", "top1_acc": 63.900001}
+[08/21 12:24:09][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2000/10000", "top1_acc": 66.600001}
+[08/21 12:24:26][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 12:24:32][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2200/10000", "top1_acc": 64.000001}
+[08/21 12:24:50][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [86, 185], Vid path: 9
+[08/21 12:24:54][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2400/10000", "top1_acc": 62.600001}
+[08/21 12:25:17][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2600/10000", "top1_acc": 65.100001}
+[08/21 12:25:39][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "2800/10000", "top1_acc": 67.100001}
+[08/21 12:26:02][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3000/10000", "top1_acc": 65.800001}
+[08/21 12:26:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3200/10000", "top1_acc": 65.400001}
+[08/21 12:26:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3400/10000", "top1_acc": 62.900001}
+[08/21 12:27:01][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 52], Vid path: 9
+[08/21 12:27:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3600/10000", "top1_acc": 65.600001}
+[08/21 12:27:32][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "3800/10000", "top1_acc": 64.100001}
+[08/21 12:27:51][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [116, 185], Vid path: 9
+[08/21 12:27:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4000/10000", "top1_acc": 67.100001}
+[08/21 12:28:16][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 12:28:17][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4200/10000", "top1_acc": 64.200001}
+[08/21 12:28:40][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4400/10000", "top1_acc": 65.600001}
+[08/21 12:29:03][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4600/10000", "top1_acc": 65.400001}
+[08/21 12:29:25][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "4800/10000", "top1_acc": 64.500001}
+[08/21 12:29:48][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5000/10000", "top1_acc": 63.500001}
+[08/21 12:30:03][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [179, 185], Vid path: 9
+[08/21 12:30:07][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [185, 88], Vid path: 9
+[08/21 12:30:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5200/10000", "top1_acc": 62.800001}
+[08/21 12:30:33][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5400/10000", "top1_acc": 64.600001}
+[08/21 12:30:56][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5600/10000", "top1_acc": 62.900001}
+[08/21 12:31:05][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [159, 185], Vid path: 9
+[08/21 12:31:18][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "5800/10000", "top1_acc": 66.200002}
+[08/21 12:31:41][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6000/10000", "top1_acc": 66.100001}
+[08/21 12:32:04][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6200/10000", "top1_acc": 65.800001}
+[08/21 12:32:26][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6400/10000", "top1_acc": 64.800001}
+[08/21 12:32:49][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6600/10000", "top1_acc": 65.200001}
+[08/21 12:33:12][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "6800/10000", "top1_acc": 64.500001}
+[08/21 12:33:34][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7000/10000", "top1_acc": 65.900002}
+[08/21 12:33:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7200/10000", "top1_acc": 65.500001}
+[08/21 12:34:19][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7400/10000", "top1_acc": 65.200001}
+[08/21 12:34:42][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7600/10000", "top1_acc": 66.300001}
+[08/21 12:35:05][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "7800/10000", "top1_acc": 64.200001}
+[08/21 12:35:27][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8000/10000", "top1_acc": 64.700001}
+[08/21 12:35:50][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8200/10000", "top1_acc": 65.000001}
+[08/21 12:36:13][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8400/10000", "top1_acc": 64.000001}
+[08/21 12:36:35][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8600/10000", "top1_acc": 65.200001}
+[08/21 12:36:58][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "8800/10000", "top1_acc": 65.300001}
+[08/21 12:37:21][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9000/10000", "top1_acc": 62.900001}
+[08/21 12:37:43][INFO] datasets.base.few_shot_dataset:  420: Error at decoding. Vid index: 2581, Vid path: /mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/113474.webm
+[08/21 12:37:43][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9200/10000", "top1_acc": 66.900002}
+[08/21 12:38:06][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9400/10000", "top1_acc": 65.300001}
+[08/21 12:38:23][WARNING] datasets.base.few_shot_dataset:  251: Error at decoding. 1/5. Vid index: [81, 185], Vid path: 9
+[08/21 12:38:29][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9600/10000", "top1_acc": 68.400001}
+[08/21 12:38:52][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "9800/10000", "top1_acc": 62.100001}
+[08/21 12:39:14][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.86 GB", "iter": "10000/10000", "top1_acc": 64.300001}
+[08/21 12:39:14][INFO] utils.logging:   91: {"RAM": "18.06/125.63 GB", "_type": "val_epoch", "epoch": "3", "gpu_mem": "1.86 GB", "top1_acc": 64.912001}
+[08/21 12:39:16][INFO] train_net_few_shot:   91: New best validation accuracy: 64.9120; checkpoint=output/SSv2_Full_FOCUS_TASK_MATCH_v2/checkpoints/checkpoint_best.pyth
+[08/21 12:39:17][INFO] utils.logging:   91: {"_type": "train_iter", "iter": "30000/30000", "loss": 1.196776, "lr": 0.000050, "top1_acc": 90.000001}
+[08/21 12:39:17][INFO] utils.logging:   91: {"RAM": "14.91/125.63 GB", "_type": "train_epoch", "epoch": "10", "gpu_mem": "1.86 GB", "loss": 2.729971, "lr": 0.000050, "top1_acc": 79.352001}

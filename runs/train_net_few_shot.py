@@ -325,6 +325,8 @@ def train_few_shot(cfg):
         'focus_alpha',
         'task_matcher',
         'task_match_alpha',
+        'proto_calibrator',
+        'proto_calib_alpha',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):

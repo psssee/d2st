@@ -690,6 +690,78 @@ class D2STTaskAwareMatcher(nn.Module):
         return -(1.0 - matched_similarity) * self.distance_scale
 
 
+class D2STEpisodePrototypeCalibrator(nn.Module):
+    """Build class-exclusive D2ST prototypes from the support episode only."""
+
+    def __init__(self, num_frames, temperature=0.2, strength=1.0):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.temperature = max(float(temperature), 1e-6)
+        self.strength = float(strength)
+
+    @staticmethod
+    def _class_prototypes(support_features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        prototypes = [
+            support_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ]
+        return torch.stack(prototypes, dim=0)
+
+    def forward(self, support_features, query_features, support_labels):
+        if support_features.ndim != 3 or query_features.ndim != 3:
+            raise ValueError(
+                "Prototype calibration expects support/query features as (B,T,D), "
+                f"got {tuple(support_features.shape)} and {tuple(query_features.shape)}"
+            )
+        if support_features.shape[1] != self.num_frames or query_features.shape[1] != self.num_frames:
+            raise ValueError(
+                f"Prototype calibration expects {self.num_frames} frames, got "
+                f"{support_features.shape[1]} and {query_features.shape[1]}"
+            )
+
+        support_labels = support_labels.to(device=support_features.device)
+        prototypes = self._class_prototypes(support_features, support_labels)
+        class_count = prototypes.shape[0]
+
+        if class_count > 1:
+            # TEAM-style episode adaptation, specialized for D2ST frame
+            # prototypes: remove only directions shared with confusable classes.
+            class_descriptors = F.normalize(prototypes.mean(dim=1), dim=-1, eps=1e-6)
+            pair_similarity = torch.matmul(class_descriptors, class_descriptors.transpose(0, 1))
+            diagonal = torch.eye(class_count, dtype=torch.bool, device=prototypes.device)
+            other_weights = F.softmax(
+                pair_similarity.masked_fill(diagonal, float("-inf")) / self.temperature,
+                dim=-1,
+            )
+            other_context = F.normalize(
+                torch.matmul(other_weights, class_descriptors), dim=-1, eps=1e-6
+            )
+            entanglement = (
+                other_weights * pair_similarity.masked_fill(diagonal, 0.0)
+            ).sum(dim=-1).clamp_min(0.0)
+
+            prototype_directions = F.normalize(prototypes, dim=-1, eps=1e-6)
+            shared_projection = (
+                prototype_directions * other_context[:, None, :]
+            ).sum(dim=-1, keepdim=True).clamp_min(0.0)
+            prototypes = prototype_directions - (
+                self.strength
+                * entanglement[:, None, None]
+                * shared_projection
+                * other_context[:, None, :]
+            )
+
+        query_norm = F.normalize(query_features, dim=-1, eps=1e-6)
+        prototype_norm = F.normalize(prototypes, dim=-1, eps=1e-6)
+        frame_similarity = torch.einsum(
+            'qtd,csd->qcts', query_norm, prototype_norm
+        )
+        dist = 1.0 - frame_similarity
+        class_dist = dist.min(dim=3)[0].sum(dim=2) + dist.min(dim=2)[0].sum(dim=2)
+        return -class_dist
+
+
 @HEAD_REGISTRY.register()
 class ViT_CLIP(nn.Module):
     def __init__(self, cfg):
@@ -745,6 +817,18 @@ class ViT_CLIP(nn.Module):
             self.task_match_use_focus = bool(
                 getattr(cfg.TASK_MATCH, "USE_FOCUS_FEATURES", True)
             )
+        self.proto_calib_enable = (
+            hasattr(cfg, "PROTO_CALIB") and getattr(cfg.PROTO_CALIB, "ENABLE", False)
+        )
+        if self.proto_calib_enable:
+            self.proto_calibrator = D2STEpisodePrototypeCalibrator(
+                num_frames=self.num_frames,
+                temperature=float(getattr(cfg.PROTO_CALIB, "TEMPERATURE", 0.2)),
+                strength=float(getattr(cfg.PROTO_CALIB, "STRENGTH", 1.0)),
+            )
+            self.proto_calib_alpha = nn.Parameter(
+                torch.tensor(float(getattr(cfg.PROTO_CALIB, "ALPHA_INIT", -4.0)))
+            )
         self.init_weights()
 
     def get_fusion_weights(self):
@@ -754,6 +838,10 @@ class ViT_CLIP(nn.Module):
         if self.task_match_enable:
             weights["task_match"] = torch.sigmoid(
                 self.task_match_alpha
+            ).detach().item()
+        if self.proto_calib_enable:
+            weights["proto_calib"] = torch.sigmoid(
+                self.proto_calib_alpha
             ).detach().item()
         return weights
 
@@ -901,6 +989,14 @@ class ViT_CLIP(nn.Module):
                 support_labels,
             )
 
+        proto_calib_logits = None
+        if self.proto_calib_enable:
+            proto_calib_logits = self.proto_calibrator(
+                support_features_raw,
+                query_features_raw,
+                support_labels,
+            )
+
         # Each optional branch learns an independent residual from the same
         # D2ST decision. This preserves single-branch behavior and avoids
         # forcing FOCUS and TASK_MATCH to compete for a softmax budget.
@@ -911,6 +1007,11 @@ class ViT_CLIP(nn.Module):
         if task_logits is not None:
             task_weight = torch.sigmoid(self.task_match_alpha)
             logits = logits + task_weight * (task_logits - base_logits.detach())
+        if proto_calib_logits is not None:
+            proto_calib_weight = torch.sigmoid(self.proto_calib_alpha)
+            logits = logits + proto_calib_weight * (
+                proto_calib_logits - base_logits.detach()
+            )
 
         return_dict = {'logits': logits, 'class_logits': class_logits}
         return return_dict

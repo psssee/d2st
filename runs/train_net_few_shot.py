@@ -57,6 +57,16 @@ def _log_fusion_state(model):
                 for name, value in fusion_weights.items()
             ),
         )
+    if hasattr(fusion_module, "get_calibration_diagnostics"):
+        diagnostics = fusion_module.get_calibration_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Prototype calibration: %s",
+                ", ".join(
+                    "{}={:.6f}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
 
 
 def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val_meter, val_loader):

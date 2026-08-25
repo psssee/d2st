@@ -67,6 +67,16 @@ def _log_fusion_state(model):
                     for name, value in diagnostics.items()
                 ),
             )
+    if hasattr(fusion_module, "get_multi_velocity_diagnostics"):
+        diagnostics = fusion_module.get_multi_velocity_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Multi-velocity matcher: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
 
 
 def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val_meter, val_loader):
@@ -337,6 +347,8 @@ def train_few_shot(cfg):
         'task_match_alpha',
         'proto_calibrator',
         'proto_calib_alpha',
+        'multi_velocity_matcher',
+        'multi_velocity_alpha',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):

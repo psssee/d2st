@@ -818,6 +818,116 @@ class D2STEpisodePrototypeCalibrator(nn.Module):
         }
 
 
+class D2STMultiVelocityMatcher(nn.Module):
+    """Match ordered multi-velocity motion features from a support episode.
+
+    Bi-MHM is intentionally order-insensitive. This branch complements it with
+    short- and long-range feature differences followed by bidirectional OTAM
+    alignment, while keeping the original appearance matcher untouched.
+    """
+
+    def __init__(self, dim, num_frames, velocities=(1, 2), hidden_ratio=0.25,
+                 dropout=0.1, distance_scale=None, otam_lambda=0.5):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.velocities = tuple(
+            sorted({int(v) for v in velocities if 0 < int(v) < self.num_frames})
+        )
+        if not self.velocities:
+            raise ValueError(
+                "Multi-velocity matcher requires at least one velocity in "
+                f"[1, {self.num_frames - 1}]."
+            )
+        self.distance_scale = float(
+            2 * self.num_frames if distance_scale is None else distance_scale
+        )
+        self.otam_lambda = max(float(otam_lambda), 1e-4)
+        hidden_dim = max(int(dim * float(hidden_ratio)), 32)
+        self.motion_norm = nn.LayerNorm(dim)
+        self.motion_projection = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(float(dropout)),
+            nn.Linear(hidden_dim, dim),
+        )
+        nn.init.constant_(self.motion_projection[-1].weight, 0.0)
+        nn.init.constant_(self.motion_projection[-1].bias, 0.0)
+        self.velocity_logits = nn.Parameter(
+            torch.zeros(len(self.velocities), dtype=torch.float32)
+        )
+        self.register_buffer("last_motion_delta", torch.tensor(0.0), persistent=False)
+
+    def _motion_features(self, features, velocity):
+        # A larger temporal offset captures slower action changes. The
+        # zero-initialized residual starts from the raw D2ST motion direction.
+        differences = features[:, velocity:] - features[:, :-velocity]
+        differences = differences + self.motion_projection(
+            self.motion_norm(differences)
+        )
+        return F.normalize(differences, dim=-1, eps=1e-6)
+
+    def _ordered_distance(self, query_features, support_features):
+        query_norm = F.normalize(query_features, dim=-1, eps=1e-6)
+        support_norm = F.normalize(support_features, dim=-1, eps=1e-6)
+        pair_distance = 1.0 - torch.einsum(
+            "qtd,csd->qcts", query_norm, support_norm
+        )
+        forward_distance = OTAM_dist(pair_distance, lbda=self.otam_lambda)
+        reverse_distance = OTAM_dist(
+            pair_distance.transpose(-1, -2), lbda=self.otam_lambda
+        )
+        return (forward_distance + reverse_distance) * 0.5
+
+    def _class_prototypes(self, support_features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        prototypes = [
+            support_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ]
+        return torch.stack(prototypes, dim=0)
+
+    def forward(self, support_features, query_features, support_labels):
+        if support_features.ndim != 3 or query_features.ndim != 3:
+            raise ValueError(
+                "Multi-velocity matcher expects support/query features as (B,T,D), "
+                f"got {tuple(support_features.shape)} and {tuple(query_features.shape)}"
+            )
+        if support_features.shape[1] != self.num_frames or query_features.shape[1] != self.num_frames:
+            raise ValueError(
+                f"Multi-velocity matcher expects {self.num_frames} frames, got "
+                f"{support_features.shape[1]} and {query_features.shape[1]}"
+            )
+
+        support_labels = support_labels.to(device=support_features.device)
+        support_prototypes = self._class_prototypes(support_features, support_labels)
+        velocity_weights = F.softmax(self.velocity_logits, dim=0).to(
+            dtype=query_features.dtype
+        )
+        velocity_distances = []
+        motion_delta = []
+        for velocity in self.velocities:
+            query_motion = self._motion_features(query_features, velocity)
+            support_motion = self._motion_features(support_prototypes, velocity)
+            velocity_distances.append(
+                self._ordered_distance(query_motion, support_motion)
+                / float(query_motion.shape[1])
+            )
+            motion_delta.append(query_motion.abs().mean())
+
+        self.last_motion_delta.copy_(torch.stack(motion_delta).mean().detach())
+        class_distance = torch.stack(velocity_distances, dim=0)
+        class_distance = (class_distance * velocity_weights[:, None, None]).sum(dim=0)
+        return -class_distance * self.distance_scale
+
+    def get_diagnostics(self):
+        return {
+            "motion_delta": self.last_motion_delta.detach().item(),
+            "velocity_weights": [
+                value for value in F.softmax(self.velocity_logits.detach(), dim=0).tolist()
+            ],
+        }
+
+
 @HEAD_REGISTRY.register()
 class ViT_CLIP(nn.Module):
     def __init__(self, cfg):
@@ -893,6 +1003,35 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "proto_calib_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.multi_velocity_enable = (
+            hasattr(cfg, "MULTI_VELOCITY")
+            and getattr(cfg.MULTI_VELOCITY, "ENABLE", False)
+        )
+        if self.multi_velocity_enable:
+            velocities = getattr(cfg.MULTI_VELOCITY, "VELOCITIES", [1, 2])
+            self.multi_velocity_matcher = D2STMultiVelocityMatcher(
+                dim=self.width,
+                num_frames=self.num_frames,
+                velocities=velocities,
+                hidden_ratio=float(
+                    getattr(cfg.MULTI_VELOCITY, "HIDDEN_RATIO", 0.25)
+                ),
+                dropout=float(getattr(cfg.MULTI_VELOCITY, "DROPOUT", 0.1)),
+                distance_scale=float(
+                    getattr(
+                        cfg.MULTI_VELOCITY,
+                        "DISTANCE_SCALE",
+                        2 * self.num_frames,
+                    )
+                ),
+                otam_lambda=float(getattr(cfg.MULTI_VELOCITY, "OTAM_LAMBDA", 0.5)),
+            )
+            self.multi_velocity_alpha = nn.Parameter(
+                torch.tensor(float(getattr(cfg.MULTI_VELOCITY, "ALPHA_INIT", -4.0)))
+            )
+            self.register_buffer(
+                "multi_velocity_logit_delta", torch.tensor(0.0), persistent=False
+            )
         self.init_weights()
 
     def get_fusion_weights(self):
@@ -907,6 +1046,10 @@ class ViT_CLIP(nn.Module):
             weights["proto_calib"] = torch.sigmoid(
                 self.proto_calib_alpha
             ).detach().item()
+        if self.multi_velocity_enable:
+            weights["multi_velocity"] = torch.sigmoid(
+                self.multi_velocity_alpha
+            ).detach().item()
         return weights
 
     def get_calibration_diagnostics(self):
@@ -914,6 +1057,13 @@ class ViT_CLIP(nn.Module):
             return {}
         diagnostics = self.proto_calibrator.get_diagnostics()
         diagnostics["logit_delta"] = self.proto_calib_logit_delta.detach().item()
+        return diagnostics
+
+    def get_multi_velocity_diagnostics(self):
+        if not self.multi_velocity_enable:
+            return {}
+        diagnostics = self.multi_velocity_matcher.get_diagnostics()
+        diagnostics["logit_delta"] = self.multi_velocity_logit_delta.detach().item()
         return diagnostics
 
     def init_weights(self):
@@ -1073,6 +1223,19 @@ class ViT_CLIP(nn.Module):
                 )
             )
 
+        multi_velocity_logits = None
+        if self.multi_velocity_enable:
+            multi_velocity_logits = self.multi_velocity_matcher(
+                support_features_raw,
+                query_features_raw,
+                support_labels,
+            )
+            self.multi_velocity_logit_delta.copy_(
+                (multi_velocity_logits - base_logits).detach().abs().mean().to(
+                    self.multi_velocity_logit_delta
+                )
+            )
+
         # Each optional branch learns an independent residual from the same
         # D2ST decision. This preserves single-branch behavior and avoids
         # forcing FOCUS and TASK_MATCH to compete for a softmax budget.
@@ -1087,6 +1250,11 @@ class ViT_CLIP(nn.Module):
             proto_calib_weight = torch.sigmoid(self.proto_calib_alpha)
             logits = logits + proto_calib_weight * (
                 proto_calib_logits - base_logits.detach()
+            )
+        if multi_velocity_logits is not None:
+            multi_velocity_weight = torch.sigmoid(self.multi_velocity_alpha)
+            logits = logits + multi_velocity_weight * (
+                multi_velocity_logits - base_logits.detach()
             )
 
         return_dict = {'logits': logits, 'class_logits': class_logits}

@@ -1187,7 +1187,7 @@ class ViT_CLIP(nn.Module):
         if self.focus_enable:
             focus_support_input = support_features_raw
             focus_query_input = query_features_raw
-            if self.focus_detach_input and self.task_match_enable:
+            if self.focus_detach_input:
                 focus_support_input = focus_support_input.detach()
                 focus_query_input = focus_query_input.detach()
             focus_support = self.focus_branch(focus_support_input, support_timestamps)

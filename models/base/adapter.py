@@ -928,6 +928,111 @@ class D2STMultiVelocityMatcher(nn.Module):
         }
 
 
+class D2STSpatialPatternMatcher(nn.Module):
+    """Match spatial pattern prototypes extracted from ViT patch tokens.
+
+    This is a lightweight D2ST adaptation of the spatial prototype idea in
+    DiST's Spatial Knowledge Compensator (arXiv:2602.18043). The ViT already
+    produces a 14x14 patch grid, so fixed grid pooling gives four regional
+    tokens per frame without adding a second backbone, text encoder, or point
+    tracker. A token-level bidirectional match is computed inside each pair of
+    frames, followed by the original Bi-MHM temporal aggregation.
+    """
+
+    def __init__(self, num_frames, grid_size=2, distance_scale=None):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.grid_size = max(int(grid_size), 1)
+        self.distance_scale = float(
+            1.0 if distance_scale is None else distance_scale
+        )
+        self.register_buffer("last_logit_delta", torch.tensor(0.0), persistent=False)
+
+    def _pool_spatial_patterns(self, patch_features):
+        if patch_features.ndim != 4:
+            raise ValueError(
+                "Spatial pattern matcher expects patch features as (B,T,P,D), "
+                f"got {tuple(patch_features.shape)}"
+            )
+        batch, frames, patch_count, dim = patch_features.shape
+        spatial_size = int(math.sqrt(patch_count))
+        if spatial_size * spatial_size != patch_count:
+            raise ValueError(
+                "Spatial pattern matcher requires a square patch grid, "
+                f"got {patch_count} patches"
+            )
+        if spatial_size % self.grid_size != 0:
+            raise ValueError(
+                f"Patch grid {spatial_size} is not divisible by pattern grid "
+                f"{self.grid_size}"
+            )
+
+        cell_size = spatial_size // self.grid_size
+        patterns = patch_features.reshape(
+            batch,
+            frames,
+            self.grid_size,
+            cell_size,
+            self.grid_size,
+            cell_size,
+            dim,
+        )
+        patterns = patterns.mean(dim=(3, 5))
+        return patterns.reshape(batch, frames, self.grid_size * self.grid_size, dim)
+
+    @staticmethod
+    def _class_prototypes(spatial_features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        prototypes = [
+            spatial_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ]
+        return torch.stack(prototypes)
+
+    def forward(self, support_patch_features, query_patch_features, support_labels):
+        if support_patch_features.ndim != 4 or query_patch_features.ndim != 4:
+            raise ValueError(
+                "Spatial pattern matcher expects support/query patch features as "
+                f"(B,T,P,D), got {tuple(support_patch_features.shape)} and "
+                f"{tuple(query_patch_features.shape)}"
+            )
+        if (
+            support_patch_features.shape[1] != self.num_frames
+            or query_patch_features.shape[1] != self.num_frames
+        ):
+            raise ValueError(
+                f"Spatial pattern matcher expects {self.num_frames} frames, got "
+                f"{support_patch_features.shape[1]} and "
+                f"{query_patch_features.shape[1]}"
+            )
+
+        support_labels = support_labels.to(device=support_patch_features.device)
+        support_patterns = self._pool_spatial_patterns(support_patch_features)
+        query_patterns = self._pool_spatial_patterns(query_patch_features)
+        support_prototypes = self._class_prototypes(support_patterns, support_labels)
+
+        query_norm = F.normalize(query_patterns, dim=-1, eps=1e-6)
+        support_norm = F.normalize(support_prototypes, dim=-1, eps=1e-6)
+        token_similarity = torch.einsum(
+            "qtkd,sujd->qstukj", query_norm, support_norm
+        )
+        token_distance = 1.0 - token_similarity
+
+        # Match regional tokens in both directions before matching frames.
+        query_to_support = token_distance.min(dim=-1).values.mean(dim=-1)
+        support_to_query = token_distance.min(dim=-2).values.mean(dim=-1)
+        frame_distance = (query_to_support + support_to_query) * 0.5
+
+        class_distance = (
+            frame_distance.min(dim=3)[0].sum(dim=2)
+            + frame_distance.min(dim=2)[0].sum(dim=2)
+        )
+        return -class_distance * self.distance_scale
+
+    def get_diagnostics(self):
+        return {"logit_delta": self.last_logit_delta.detach().item()}
+
+
 @HEAD_REGISTRY.register()
 class ViT_CLIP(nn.Module):
     def __init__(self, cfg):
@@ -1032,6 +1137,33 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "multi_velocity_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.spatial_pattern_enable = (
+            hasattr(cfg, "SPATIAL_PATTERN")
+            and getattr(cfg.SPATIAL_PATTERN, "ENABLE", False)
+        )
+        if self.spatial_pattern_enable:
+            self.spatial_pattern_matcher = D2STSpatialPatternMatcher(
+                num_frames=self.num_frames,
+                grid_size=int(getattr(cfg.SPATIAL_PATTERN, "GRID_SIZE", 2)),
+                distance_scale=float(
+                    getattr(
+                        cfg.SPATIAL_PATTERN,
+                        "DISTANCE_SCALE",
+                        1.0,
+                    )
+                ),
+            )
+            self.spatial_pattern_alpha = nn.Parameter(
+                torch.tensor(
+                    float(getattr(cfg.SPATIAL_PATTERN, "ALPHA_INIT", -4.0))
+                )
+            )
+            self.spatial_pattern_detach_input = bool(
+                getattr(cfg.SPATIAL_PATTERN, "DETACH_INPUT", True)
+            )
+            self.register_buffer(
+                "spatial_pattern_logit_delta", torch.tensor(0.0), persistent=False
+            )
         self.init_weights()
 
     def get_fusion_weights(self):
@@ -1050,6 +1182,10 @@ class ViT_CLIP(nn.Module):
             weights["multi_velocity"] = torch.sigmoid(
                 self.multi_velocity_alpha
             ).detach().item()
+        if self.spatial_pattern_enable:
+            weights["spatial_pattern"] = torch.sigmoid(
+                self.spatial_pattern_alpha
+            ).detach().item()
         return weights
 
     def get_calibration_diagnostics(self):
@@ -1064,6 +1200,13 @@ class ViT_CLIP(nn.Module):
             return {}
         diagnostics = self.multi_velocity_matcher.get_diagnostics()
         diagnostics["logit_delta"] = self.multi_velocity_logit_delta.detach().item()
+        return diagnostics
+
+    def get_spatial_pattern_diagnostics(self):
+        if not self.spatial_pattern_enable:
+            return {}
+        diagnostics = self.spatial_pattern_matcher.get_diagnostics()
+        diagnostics["logit_delta"] = self.spatial_pattern_logit_delta.detach().item()
         return diagnostics
 
     def init_weights(self):
@@ -1119,7 +1262,7 @@ class ViT_CLIP(nn.Module):
         dist = 1 - frame_sim
         return dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
 
-    def get_feat(self, x):
+    def get_feat(self, x, return_patch_tokens=False):
         x = self.conv1(x)  # b*t c h w
         x = rearrange(x, 'b c h w -> b (h w) c')
         # b*t h*w+1 c
@@ -1137,18 +1280,42 @@ class ViT_CLIP(nn.Module):
         x = self.transformer(x)
         x = x.permute(1, 0, 2)
         x = self.ln_post(x)
-        x = x[:, 0, :]
-        return x
+        cls_features = x[:, 0, :]
+        if not return_patch_tokens:
+            return cls_features
+        return cls_features, x[:, 1:, :]
 
     def forward(self, inputs):
         support_images, query_images = inputs['support_set'], inputs['target_set']
-        support_features = self.get_feat(support_images)
-        query_features = self.get_feat(query_images)
+        return_patch_tokens = self.spatial_pattern_enable
+        if return_patch_tokens:
+            support_features, support_patch_features = self.get_feat(
+                support_images, return_patch_tokens=True
+            )
+            query_features, query_patch_features = self.get_feat(
+                query_images, return_patch_tokens=True
+            )
+        else:
+            support_features = self.get_feat(support_images)
+            query_features = self.get_feat(query_images)
         support_labels = inputs['support_labels']
         unique_labels = torch.unique(support_labels)
 
         support_features = support_features.reshape(-1, self.num_frames, self.args.ADAPTER.WIDTH)
         query_features = query_features.reshape(-1, self.num_frames, self.args.ADAPTER.WIDTH)
+        if return_patch_tokens:
+            support_patch_features = support_patch_features.reshape(
+                -1,
+                self.num_frames,
+                support_patch_features.shape[1],
+                support_patch_features.shape[2],
+            )
+            query_patch_features = query_patch_features.reshape(
+                -1,
+                self.num_frames,
+                query_patch_features.shape[1],
+                query_patch_features.shape[2],
+            )
         support_features_raw = support_features
         query_features_raw = query_features
         support_timestamps = inputs.get("support_timestamps", None)
@@ -1236,6 +1403,24 @@ class ViT_CLIP(nn.Module):
                 )
             )
 
+        spatial_pattern_logits = None
+        if self.spatial_pattern_enable:
+            spatial_support_input = support_patch_features
+            spatial_query_input = query_patch_features
+            if self.spatial_pattern_detach_input:
+                spatial_support_input = spatial_support_input.detach()
+                spatial_query_input = spatial_query_input.detach()
+            spatial_pattern_logits = self.spatial_pattern_matcher(
+                spatial_support_input,
+                spatial_query_input,
+                support_labels,
+            )
+            self.spatial_pattern_logit_delta.copy_(
+                (spatial_pattern_logits - base_logits).detach().abs().mean().to(
+                    self.spatial_pattern_logit_delta
+                )
+            )
+
         # Each optional branch learns an independent residual from the same
         # D2ST decision. This preserves single-branch behavior and avoids
         # forcing FOCUS and TASK_MATCH to compete for a softmax budget.
@@ -1255,6 +1440,11 @@ class ViT_CLIP(nn.Module):
             multi_velocity_weight = torch.sigmoid(self.multi_velocity_alpha)
             logits = logits + multi_velocity_weight * (
                 multi_velocity_logits - base_logits.detach()
+            )
+        if spatial_pattern_logits is not None:
+            spatial_pattern_weight = torch.sigmoid(self.spatial_pattern_alpha)
+            logits = logits + spatial_pattern_weight * (
+                spatial_pattern_logits - base_logits.detach()
             )
 
         return_dict = {'logits': logits, 'class_logits': class_logits}

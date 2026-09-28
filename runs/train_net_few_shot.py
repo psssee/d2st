@@ -18,10 +18,36 @@ import utils.logging as logging
 import utils.metrics as metrics
 import utils.misc as misc
 from utils.meters import TrainMeter, ValMeter
+from utils.spatial_pattern_diagnostics import SpatialPatternMeter
 from models.base.builder import build_model
 from datasets.base.builder import build_loader, shuffle_dataset
 
 logger = logging.get_logger(__name__)
+
+
+def _validate_spatial_pattern_training(model, optimizer, check_gradient=False):
+    optimized_ids = {
+        id(param) for group in optimizer.param_groups for param in group['params']
+    }
+    for name, param in model.named_parameters():
+        if name.rsplit('.', 1)[-1] != 'spatial_pattern_alpha':
+            continue
+        if not param.requires_grad or id(param) not in optimized_ids:
+            raise RuntimeError(
+                f'{name} must be trainable and included in the optimizer.'
+            )
+        if check_gradient:
+            if param.grad is None or not torch.isfinite(param.grad).all():
+                raise RuntimeError(f'{name} has no finite gradient after backward.')
+            logger.info(
+                'Spatial pattern gate first backward: %s grad=%.8g',
+                name, param.grad.item(),
+            )
+        else:
+            logger.info(
+                'Spatial pattern gate: %s trainable=True optimized=True weight=%.6f',
+                name, torch.sigmoid(param.detach()).item(),
+            )
 
 
 def _unwrap_meta_episode(task_dict):
@@ -213,6 +239,8 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
             optimizer.zero_grad()
             continue
         (loss / gradient_scale).backward(retain_graph=False)
+        if cur_iter == 0:
+            _validate_spatial_pattern_training(model, optimizer, check_gradient=True)
 
         # optimize
         if ((cur_iter + 1) % cfg.TRAIN.BATCH_SIZE_PER_TASK == 0):
@@ -246,6 +274,7 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
 def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     model.eval()
     val_meter.iter_tic()
+    spatial_meter = SpatialPatternMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -257,6 +286,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
 
         # preds, logits = model(inputs)
         model_dict = model(task_dict)
+        spatial_meter.update(model_dict, task_dict['target_labels'])
 
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
@@ -285,6 +315,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     # Log epoch stats.
     val_acc = 100.0 - val_meter.num_top1_mis / val_meter.num_samples
     val_meter.log_epoch_stats(cur_epoch)
+    spatial_meter.log(logger)
     val_meter.reset()
     return val_acc
 
@@ -359,10 +390,13 @@ def train_few_shot(cfg):
         'proto_calib_alpha',
         'multi_velocity_matcher',
         'multi_velocity_alpha',
+        'spatial_pattern_matcher',
+        'spatial_pattern_alpha',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):
             param.requires_grad = False
+    _validate_spatial_pattern_training(model, optimizer)
 
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:
         for name, param in model.named_parameters():

@@ -15,6 +15,7 @@ import utils.logging as logging
 import utils.metrics as metrics
 import utils.misc as misc
 from utils.meters import ValMeter
+from utils.spatial_pattern_diagnostics import SpatialPatternMeter
 from models.base.builder import build_model
 from datasets.base.builder import build_loader
 
@@ -38,6 +39,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     val_meter.iter_tic()
     top1_per_class = {}
     num_per_class = {}
+    spatial_meter = SpatialPatternMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -48,6 +50,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
                 task_dict[k] = task_dict[k].cuda(non_blocking=True)
 
         model_dict = model(task_dict)
+        spatial_meter.update(model_dict, task_dict['target_labels'])
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
             model_dict["logits"], task_dict["target_labels"].long()
@@ -86,6 +89,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
 
     # Log epoch stats.
     val_meter.log_epoch_stats(cur_epoch)
+    spatial_meter.log(logger)
     for perclass in top1_per_class:
         # top1_per_class[perclass] = num_per_class[perclass]
         logger.info("class: {}, acc: {}".format(perclass, top1_per_class[perclass] / num_per_class[perclass]))

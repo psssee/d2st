@@ -931,8 +931,9 @@ class D2STMultiVelocityMatcher(nn.Module):
 class D2STSpatialPatternMatcher(nn.Module):
     """Match spatial pattern prototypes extracted from ViT patch tokens.
 
-    This is a lightweight D2ST adaptation of the spatial prototype idea in
-    DiST's Spatial Knowledge Compensator (arXiv:2602.18043). The ViT already
+    Inspired by spatial prototype matching in DiST (arXiv:2602.18043), but
+    not a reproduction of its semantic-guided Spatial Knowledge Compensator.
+    Regional grid averages are not learned object prototypes. The ViT already
     produces a 14x14 patch grid, so fixed grid pooling gives four regional
     tokens per frame without adding a second backbone, text encoder, or point
     tracker. A token-level bidirectional match is computed inside each pair of
@@ -946,7 +947,6 @@ class D2STSpatialPatternMatcher(nn.Module):
         self.distance_scale = float(
             1.0 if distance_scale is None else distance_scale
         )
-        self.register_buffer("last_logit_delta", torch.tensor(0.0), persistent=False)
 
     def _pool_spatial_patterns(self, patch_features):
         if patch_features.ndim != 4:
@@ -1030,7 +1030,7 @@ class D2STSpatialPatternMatcher(nn.Module):
         return -class_distance * self.distance_scale
 
     def get_diagnostics(self):
-        return {"logit_delta": self.last_logit_delta.detach().item()}
+        return {"grid_size": self.grid_size, "tokens_per_frame": self.grid_size ** 2}
 
 
 @HEAD_REGISTRY.register()
@@ -1206,7 +1206,11 @@ class ViT_CLIP(nn.Module):
         if not self.spatial_pattern_enable:
             return {}
         diagnostics = self.spatial_pattern_matcher.get_diagnostics()
-        diagnostics["logit_delta"] = self.spatial_pattern_logit_delta.detach().item()
+        diagnostics["last_episode_raw_logit_delta"] = (
+            self.spatial_pattern_logit_delta.detach().item()
+        )
+        diagnostics["gate_trainable"] = self.spatial_pattern_alpha.requires_grad
+        diagnostics["detach_input"] = self.spatial_pattern_detach_input
         return diagnostics
 
     def init_weights(self):
@@ -1441,6 +1445,7 @@ class ViT_CLIP(nn.Module):
             logits = logits + multi_velocity_weight * (
                 multi_velocity_logits - base_logits.detach()
             )
+        logits_without_spatial = logits
         if spatial_pattern_logits is not None:
             spatial_pattern_weight = torch.sigmoid(self.spatial_pattern_alpha)
             logits = logits + spatial_pattern_weight * (
@@ -1448,4 +1453,9 @@ class ViT_CLIP(nn.Module):
             )
 
         return_dict = {'logits': logits, 'class_logits': class_logits}
+        if spatial_pattern_logits is not None and not self.training:
+            # Evaluate the marginal contribution on identical episodes without
+            # another backbone pass. Query labels are used only by the meter.
+            return_dict['logits_without_spatial'] = logits_without_spatial.detach()
+            return_dict['spatial_pattern_logits'] = spatial_pattern_logits.detach()
         return return_dict

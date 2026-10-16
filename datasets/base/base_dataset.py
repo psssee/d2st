@@ -452,6 +452,11 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         if not success:
             return vr, file_to_remove, success
 
+        if len(vr) == 0:
+            logger.warning("Video has no decodable frames: %s (index=%s)", path, index)
+            del vr
+            return None, file_to_remove, False
+
         if self.split == "train":
             clip_idx = -1
             self.spatial_idx = -1
@@ -707,6 +712,16 @@ class BaseVideoDataset(torch.utils.data.Dataset):
 
     # def _interval_based_sampling(self, vid_length, clip_idx, num_clips, num_frames, interval):
     def _interval_based_sampling(self, vid_length, vid_fps, clip_idx, num_clips, num_frames, interval):
+        if vid_length <= 0 or num_frames <= 0:
+            raise ValueError(
+                f"Frame sampling requires positive video length and frame count; "
+                f"got vid_length={vid_length}, num_frames={num_frames}."
+            )
+        if vid_length < num_frames:
+            # A short but valid clip must not produce empty integer segments.
+            # Repeat existing frames in time order to keep the model input size.
+            return torch.linspace(0, vid_length - 1, num_frames).round().long()
+
         if num_frames == 1:
             index = [random.randint(0, vid_length - 1)]
         else:
@@ -758,6 +773,11 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         Returns:
             index (tensor): the sampled frame indexes
         """
+        if vid_length <= 0 or num_frames <= 0:
+            raise ValueError(
+                f"Frame sampling requires positive video length and frame count; "
+                f"got vid_length={vid_length}, num_frames={num_frames}."
+            )
         index = torch.zeros(num_frames)
         index_range = torch.linspace(0, vid_length, num_frames + 1)
         for idx in range(num_frames):

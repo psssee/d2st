@@ -18,7 +18,10 @@ import utils.logging as logging
 import utils.metrics as metrics
 import utils.misc as misc
 from utils.meters import TrainMeter, ValMeter
-from utils.spatial_pattern_diagnostics import SpatialPatternMeter
+from utils.spatial_pattern_diagnostics import (
+    RelationalTemporalMeter,
+    SpatialPatternMeter,
+)
 from models.base.builder import build_model
 from datasets.base.builder import build_loader, shuffle_dataset
 
@@ -108,6 +111,16 @@ def _log_fusion_state(model):
         if diagnostics:
             logger.info(
                 "Spatial pattern matcher: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
+    if hasattr(fusion_module, "get_relation_match_diagnostics"):
+        diagnostics = fusion_module.get_relation_match_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Relational temporal matcher: %s",
                 ", ".join(
                     "{}={}".format(name, value)
                     for name, value in diagnostics.items()
@@ -275,6 +288,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     model.eval()
     val_meter.iter_tic()
     spatial_meter = SpatialPatternMeter()
+    relation_meter = RelationalTemporalMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -287,6 +301,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         # preds, logits = model(inputs)
         model_dict = model(task_dict)
         spatial_meter.update(model_dict, task_dict['target_labels'])
+        relation_meter.update(model_dict, task_dict['target_labels'])
 
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
@@ -316,6 +331,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     val_acc = 100.0 - val_meter.num_top1_mis / val_meter.num_samples
     val_meter.log_epoch_stats(cur_epoch)
     spatial_meter.log(logger)
+    relation_meter.log(logger)
     val_meter.reset()
     return val_acc
 
@@ -392,6 +408,8 @@ def train_few_shot(cfg):
         'multi_velocity_alpha',
         'spatial_pattern_matcher',
         'spatial_pattern_alpha',
+        'relation_matcher',
+        'relation_match_alpha',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):

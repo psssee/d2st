@@ -109,6 +109,15 @@ Both keep `GRID_SIZE: 2`, `DISTANCE_SCALE: 1.0`, `ALPHA_INIT: -4.0`,
 `DETACH_INPUT: true`, the existing optimizer, and the 10k evaluation interval.
 Do not automatically resume the old frozen-gate run as the controlled comparison.
 
+For two independent jobs on a two-GPU server, the spatial-only `GATE_FIX` and
+`AUDIT` configs select GPU 0 (port 1111); the combined configs select GPU 1
+(port 1112). Each keeps `NUM_GPUS: 1` and its own output directory. Launch one
+config per GPU in separate terminals; do not launch both audit and training on
+the same assigned GPU simultaneously if each GPU should run only one job.
+The current single-GPU launcher does not initialize a distributed process group,
+so `INIT_METHOD` does not select a GPU. The YAML device setting overrides the
+shell's `CUDA_VISIBLE_DEVICES` in `runs/run.py`.
+
 Use an independent validation split for architecture and hyperparameter
 selection, then evaluate held-out test classes. The existing training pipeline
 loads `test_few_shot.txt` for checkpoint selection; the historical final scores

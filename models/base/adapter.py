@@ -1033,6 +1033,58 @@ class D2STSpatialPatternMatcher(nn.Module):
         return {"grid_size": self.grid_size, "tokens_per_frame": self.grid_size ** 2}
 
 
+class D2STRelationalTemporalMatcher(nn.Module):
+    """Match within-video temporal relations instead of isolated frames."""
+
+    def __init__(self, num_frames, distance_scale=None, temperature=1.0):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.distance_scale = float(
+            2 * self.num_frames if distance_scale is None else distance_scale
+        )
+        self.temperature = max(float(temperature), 1e-6)
+        self.register_buffer("last_relation_delta", torch.tensor(0.0), persistent=False)
+
+    @staticmethod
+    def _class_prototypes(features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        return torch.stack([
+            features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ])
+
+    @staticmethod
+    def _relation_matrix(features):
+        normalized = F.normalize(features, dim=-1, eps=1e-6)
+        return torch.bmm(normalized, normalized.transpose(1, 2))
+
+    def forward(self, support_features, query_features, support_labels):
+        if support_features.ndim != 3 or query_features.ndim != 3:
+            raise ValueError(
+                "Relational matcher expects support/query features as (B,T,D), "
+                f"got {tuple(support_features.shape)} and {tuple(query_features.shape)}"
+            )
+        if support_features.shape[1] != self.num_frames or query_features.shape[1] != self.num_frames:
+            raise ValueError(
+                f"Relational matcher expects {self.num_frames} frames, got "
+                f"{support_features.shape[1]} and {query_features.shape[1]}"
+            )
+        support_labels = support_labels.to(device=support_features.device)
+        support_relations = self._relation_matrix(support_features)
+        query_relations = self._relation_matrix(query_features)
+        relation_prototypes = self._class_prototypes(support_relations, support_labels)
+        relation_distance = (
+            query_relations[:, None] - relation_prototypes[None]
+        ).abs().mean(dim=(-1, -2))
+        self.last_relation_delta.copy_(
+            relation_distance.detach().mean().to(self.last_relation_delta)
+        )
+        return -relation_distance * self.distance_scale / self.temperature
+
+    def get_diagnostics(self):
+        return {"relation_delta": self.last_relation_delta.detach().item()}
+
+
 @HEAD_REGISTRY.register()
 class ViT_CLIP(nn.Module):
     def __init__(self, cfg):
@@ -1164,6 +1216,22 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "spatial_pattern_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.relation_match_enable = (
+            hasattr(cfg, "RELATION_MATCH")
+            and getattr(cfg.RELATION_MATCH, "ENABLE", False)
+        )
+        if self.relation_match_enable:
+            self.relation_matcher = D2STRelationalTemporalMatcher(
+                num_frames=self.num_frames,
+                distance_scale=float(getattr(cfg.RELATION_MATCH, "DISTANCE_SCALE", 16.0)),
+                temperature=float(getattr(cfg.RELATION_MATCH, "TEMPERATURE", 1.0)),
+            )
+            self.relation_match_alpha = nn.Parameter(torch.tensor(float(
+                getattr(cfg.RELATION_MATCH, "ALPHA_INIT", -4.0)
+            )))
+            self.register_buffer(
+                "relation_match_logit_delta", torch.tensor(0.0), persistent=False
+            )
         self.init_weights()
 
     def get_fusion_weights(self):
@@ -1186,7 +1254,19 @@ class ViT_CLIP(nn.Module):
             weights["spatial_pattern"] = torch.sigmoid(
                 self.spatial_pattern_alpha
             ).detach().item()
+        if self.relation_match_enable:
+            weights["relation_match"] = torch.sigmoid(
+                self.relation_match_alpha
+            ).detach().item()
         return weights
+
+    def get_relation_match_diagnostics(self):
+        if not self.relation_match_enable:
+            return {}
+        diagnostics = self.relation_matcher.get_diagnostics()
+        diagnostics["logit_delta"] = self.relation_match_logit_delta.detach().item()
+        diagnostics["gate_trainable"] = self.relation_match_alpha.requires_grad
+        return diagnostics
 
     def get_calibration_diagnostics(self):
         if not self.proto_calib_enable:
@@ -1425,6 +1505,19 @@ class ViT_CLIP(nn.Module):
                 )
             )
 
+        relation_match_logits = None
+        if self.relation_match_enable:
+            relation_match_logits = self.relation_matcher(
+                support_features_raw,
+                query_features_raw,
+                support_labels,
+            )
+            self.relation_match_logit_delta.copy_(
+                (relation_match_logits - base_logits).detach().abs().mean().to(
+                    self.relation_match_logit_delta
+                )
+            )
+
         # Each optional branch learns an independent residual from the same
         # D2ST decision. This preserves single-branch behavior and avoids
         # forcing FOCUS and TASK_MATCH to compete for a softmax budget.
@@ -1445,6 +1538,12 @@ class ViT_CLIP(nn.Module):
             logits = logits + multi_velocity_weight * (
                 multi_velocity_logits - base_logits.detach()
             )
+        logits_without_relation_match = logits
+        if relation_match_logits is not None:
+            relation_match_weight = torch.sigmoid(self.relation_match_alpha)
+            logits = logits + relation_match_weight * (
+                relation_match_logits - base_logits.detach()
+            )
         logits_without_spatial = logits
         if spatial_pattern_logits is not None:
             spatial_pattern_weight = torch.sigmoid(self.spatial_pattern_alpha)
@@ -1458,4 +1557,7 @@ class ViT_CLIP(nn.Module):
             # another backbone pass. Query labels are used only by the meter.
             return_dict['logits_without_spatial'] = logits_without_spatial.detach()
             return_dict['spatial_pattern_logits'] = spatial_pattern_logits.detach()
+        if relation_match_logits is not None and not self.training:
+            return_dict['logits_without_relation_match'] = logits_without_relation_match.detach()
+            return_dict['relation_match_logits'] = relation_match_logits.detach()
         return return_dict

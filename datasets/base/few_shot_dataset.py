@@ -246,11 +246,15 @@ class Few_shot(BaseVideoDataset):
                     break
 
                 except Exception as e:
-                    success = False
-                    traceback.print_exc()
-                    logger.warning("Error at decoding. {}/{}. Vid index: {}, Vid path: {}".format(
-                        retry + 1, retries, idxs, bc
-                    ))
+                    logger.warning(
+                        "Episode %s failed (%s/%s), classes=%s: %s",
+                        index, retry + 1, retries, batch_classes, e,
+                    )
+                    if retry == retries - 1:
+                        raise RuntimeError(
+                            f"Could not build a complete episode {index} after "
+                            f"{retries} attempts; classes={batch_classes}."
+                        ) from e
 
             s = list(zip(support_set, support_labels, real_support_labels, support_timestamps))
             episode_rng.shuffle(s)
@@ -393,14 +397,14 @@ class Few_shot(BaseVideoDataset):
             sample_info = {
                 "path": video_path,
             }
-            # skip known-corrupted videos silently
-            if video_path in self._corrupted_videos:
-                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
-                return dummy, index
             index = vid_id
+            # Let the episode retry with distinct support/query videos.
+            if video_path in self._corrupted_videos:
+                raise ValueError(f"Cannot decode known-corrupted video: {video_path}")
             # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
             is_oss = sample_info["path"][:3] == "oss"
             retries = (5 if self.split == "train" else 10) if is_oss else 1
+            file_to_remove = []
             for retry in range(retries):
                 try:
                     data, file_to_remove, success = self.decode(
@@ -419,13 +423,14 @@ class Few_shot(BaseVideoDataset):
                 self._corrupted_videos.add(video_path)
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
-                return dummy, index
+                bu.clear_tmp_file(file_to_remove)
+                raise ValueError(f"Video decoding failed: {video_path} (index={index})")
             if data["video"].numel() == 0:
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
-                return dummy, index
+                self._corrupted_videos.add(video_path)
+                bu.clear_tmp_file(file_to_remove)
+                raise ValueError(f"Video contains no decoded frames: {video_path}")
 
             if self.gpu_transform:
                 for k, v in data.items():
@@ -473,14 +478,14 @@ class Few_shot(BaseVideoDataset):
             sample_info = {
                 "path": video_path,
             }
-            # skip known-corrupted videos silently
-            if video_path in self._corrupted_videos:
-                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
-                return dummy, index
             index = vid_id
+            # Let the episode retry with distinct support/query videos.
+            if video_path in self._corrupted_videos:
+                raise ValueError(f"Cannot decode known-corrupted video: {video_path}")
             # local files: retrying won't help a corrupted file; OSS files: retry for transient network errors
             is_oss = sample_info["path"][:3] == "oss"
             retries = (5 if self.split == "train" else 10) if is_oss else 1
+            file_to_remove = []
             for retry in range(retries):
                 try:
                     data, file_to_remove, success = self.decode(
@@ -499,13 +504,14 @@ class Few_shot(BaseVideoDataset):
                 self._corrupted_videos.add(video_path)
                 logger.info("Error at decoding. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
-                return dummy, index
+                bu.clear_tmp_file(file_to_remove)
+                raise ValueError(f"Video decoding failed: {video_path} (index={index})")
             if data["video"].numel() == 0:
                 logger.info("data[video].numel()=0. Vid index: {}, Vid path: {}".format(
                     index, sample_info["path"]))
-                dummy = torch.zeros(self.cfg.DATA.NUM_INPUT_FRAMES, 3, self.cfg.DATA.TRAIN_CROP_SIZE, self.cfg.DATA.TEST_CROP_SIZE)
-                return dummy, index
+                self._corrupted_videos.add(video_path)
+                bu.clear_tmp_file(file_to_remove)
+                raise ValueError(f"Video contains no decoded frames: {video_path}")
 
             if self.gpu_transform:
                 for k, v in data.items():

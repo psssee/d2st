@@ -40,11 +40,12 @@ def rearrange_frames(tensor, pattern):
 
 adapter_namespace = load_definitions(
     ROOT / 'models/base/adapter.py',
-    {'D2STSpatialPatternMatcher', 'ViT_CLIP', 'D2STTaskAwareMatcher',
+    {'D2STSpatialPatternMatcher', 'D2STRelationalTemporalMatcher', 'ViT_CLIP', 'D2STTaskAwareMatcher',
      'D2STMultiVelocityMatcher', 'OTAM_dist'},
     {'torch': torch, 'nn': nn, 'F': F, 'math': math, 'rearrange': rearrange_frames},
 )
 Matcher = adapter_namespace['D2STSpatialPatternMatcher']
+RelationMatcher = adapter_namespace['D2STRelationalTemporalMatcher']
 ViT = adapter_namespace['ViT_CLIP']
 training_namespace = load_definitions(
     ROOT / 'runs/train_net_few_shot.py',
@@ -107,6 +108,26 @@ class SpatialPatternTests(unittest.TestCase):
         patches = torch.arange(16.0).reshape(1, 1, 16, 1)
         pooled = Matcher(1)._pool_spatial_patterns(patches).flatten()
         torch.testing.assert_close(pooled, torch.tensor([2.5, 4.5, 10.5, 12.5]))
+
+    def test_relation_matcher_shapes_values_and_gradient(self):
+        matcher = RelationMatcher(num_frames=3, distance_scale=6.0)
+        support = torch.randn(4, 3, 6, requires_grad=True)
+        query = torch.randn(2, 3, 6, requires_grad=True)
+        labels = torch.tensor([7, 2, 7, 2])
+        logits = matcher(support, query, labels)
+        self.assertEqual(tuple(logits.shape), (2, 2))
+        self.assertTrue(torch.isfinite(logits).all())
+        logits.sum().backward()
+        self.assertTrue(torch.isfinite(support.grad).all())
+        self.assertTrue(torch.isfinite(query.grad).all())
+
+    def test_relation_matcher_order_relation_changes_score(self):
+        matcher = RelationMatcher(num_frames=3)
+        support = torch.tensor([[[1., 0.], [0., 1.], [-1., 0.]]])
+        labels = torch.tensor([0])
+        ordered = matcher(support, support, labels)
+        reversed_video = matcher(support, support.flip(1), labels)
+        self.assertGreater(ordered.item(), reversed_video.item())
 
     def test_matching_axes_and_scale_against_reference(self):
         matcher = Matcher(3)
@@ -244,12 +265,17 @@ class SpatialPatternTests(unittest.TestCase):
             for suffix in ['GATE_FIX', 'AUDIT']:
                 changed = yaml.safe_load((config_dir / (name + '_' + suffix + '.yaml')).read_text())
                 self.assertEqual(changed.pop('OUTPUT_DIR'), original['OUTPUT_DIR'] + '_' + suffix)
+                combined = 'TASK_MATCH_MULTI_VELOCITY' in name
+                self.assertEqual(changed.pop('CUDA_VISIBLE_DEVICES'), '1' if combined else '0')
+                self.assertEqual(changed.pop('INIT_METHOD'),
+                                 'tcp://localhost:1112' if combined else 'tcp://localhost:1111')
                 if suffix == 'AUDIT':
                     self.assertIs(changed['TRAIN']['ENABLE'], False)
                     self.assertEqual(changed['TEST'].pop('CHECKPOINT_FILE_PATH'),
                                      original['OUTPUT_DIR'] + '/checkpoints/checkpoint_best.pyth')
                     changed['TRAIN']['ENABLE'] = True
-                expected = {key: value for key, value in original.items() if key != 'OUTPUT_DIR'}
+                expected = {key: value for key, value in original.items()
+                            if key not in {'OUTPUT_DIR', 'CUDA_VISIBLE_DEVICES', 'INIT_METHOD'}}
                 self.assertEqual(changed, expected)
 
     def test_paired_meter_counts_and_episode_uncertainty(self):

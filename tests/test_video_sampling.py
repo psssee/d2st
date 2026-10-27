@@ -38,7 +38,11 @@ Base = load_methods(
 )
 FewShot = load_methods(
     ROOT / 'datasets/base/few_shot_dataset.py', 'Few_shot',
-    {'get_seq', 'get_seq_query', '__getitem__', '_unpack_seq', '_pack_timestamps'},
+    {
+        'get_seq', 'get_seq_query', '__getitem__', '_unpack_seq',
+        '_pack_timestamps', '_get_episode_classes',
+        '_get_episode_num_videos', '_get_episode_video',
+    },
     NAMESPACE, Base,
 )
 
@@ -194,6 +198,26 @@ class VideoSamplingTests(unittest.TestCase):
         self.assertFalse(support_ids & query_ids)
         for name in first:
             torch.testing.assert_close(first[name], second[name])
+
+    def test_episode_uses_frozen_index_when_wrapper_is_replaced(self):
+        data, _ = dataset()
+        data._episode_videos = ('class0-video', 'class1-video')
+        data._episode_class_to_indices = {0: (0,), 1: (1,)}
+        data._episode_classes = (0, 1)
+        data.split_few_shot = 17
+
+        self.assertEqual(data._get_episode_classes(), [0, 1])
+        self.assertEqual(data._get_episode_num_videos(1), 1)
+        self.assertEqual(data._get_episode_video(1, 0), ('class1-video', 1))
+
+    def test_episode_index_rejects_missing_or_out_of_range_videos(self):
+        data, _ = dataset()
+        data._episode_videos = ('class0-video',)
+        data._episode_class_to_indices = {0: (0,)}
+        with self.assertRaisesRegex(ValueError, 'No videos found'):
+            data._get_episode_video(1, 0)
+        with self.assertRaisesRegex(IndexError, 'out of range'):
+            data._get_episode_video(0, 1)
 
     def test_exhausted_retries_never_return_a_partial_episode(self):
         data, _ = dataset()

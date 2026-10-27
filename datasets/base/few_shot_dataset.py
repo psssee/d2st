@@ -9,7 +9,6 @@ import random
 import torch
 import torch.utils.data
 import utils.logging as logging
-import numpy as np
 import traceback
 import utils.bucket as bu
 
@@ -37,6 +36,7 @@ class Split_few_shot():
 
         self.gt_a_list = []
         self.videos = []
+        self.class_to_indices = {}
         self.split_dataset = split_dataset
 
         for class_folder in folder:
@@ -47,28 +47,36 @@ class Split_few_shot():
         logger.info("loaded {} videos from {} dataset: {} !".format(len(self.gt_a_list), split_dataset, dataset))
 
     def add_vid(self, paths, gt_a):
+        video_index = len(self.videos)
         self.videos.append(paths)
         self.gt_a_list.append(gt_a)
+        self.class_to_indices.setdefault(gt_a, []).append(video_index)
 
     def get_rand_vid(self, label, idx=-1):
-        match_idxs = []
-        for i in range(len(self.gt_a_list)):
-            if label == self.gt_a_list[i]:
-                match_idxs.append(i)
+        match_idxs = self.class_to_indices.get(label, [])
+        if not match_idxs:
+            raise ValueError("No videos found for class {}".format(label))
 
         if idx != -1:
-            return self.videos[match_idxs[idx]], match_idxs[idx]
-        random_idx = np.random.choice(match_idxs)
-        return self.videos[random_idx], random_idx
+            if idx < 0 or idx >= len(match_idxs):
+                raise IndexError(
+                    "Video index {} is out of range for class {} ({} videos)".format(
+                        idx, label, len(match_idxs)
+                    )
+                )
+            video_index = match_idxs[idx]
+            return self.videos[video_index], video_index
+        video_index = random.choice(match_idxs)
+        return self.videos[video_index], video_index
 
     def get_single_video(self, index):
         return self.videos[index], self.gt_a_list[index]
 
     def get_num_videos_for_class(self, label):
-        return len([gt for gt in self.gt_a_list if gt == label])
+        return len(self.class_to_indices.get(label, []))
 
     def get_unique_classes(self):
-        return list(set(self.gt_a_list))
+        return list(self.class_to_indices.keys())
 
     def __len__(self):
         return len(self.gt_a_list)
@@ -115,6 +123,57 @@ class Few_shot(BaseVideoDataset):
         }
         return sample_info
 
+    def _freeze_episode_index(self):
+        """Keep episode sampling independent from the mutable dataset wrapper.
+
+        DataLoader workers own a copy of the dataset.  The wrapper is only a
+        convenience container, so episode construction should use immutable
+        video paths and class indices after initialization.
+        """
+        split_data = self.split_few_shot
+        if not isinstance(split_data, Split_few_shot):
+            raise TypeError(
+                "split_few_shot must be a Split_few_shot instance, got {}".format(
+                    type(split_data).__name__
+                )
+            )
+
+        self._episode_videos = tuple(split_data.videos)
+        self._episode_class_to_indices = {
+            int(label): tuple(indices)
+            for label, indices in split_data.class_to_indices.items()
+        }
+        self._episode_classes = tuple(self._episode_class_to_indices.keys())
+
+    def _get_episode_classes(self):
+        if hasattr(self, "_episode_classes"):
+            return list(self._episode_classes)
+        return self.split_few_shot.get_unique_classes()
+
+    def _get_episode_num_videos(self, label):
+        if hasattr(self, "_episode_class_to_indices"):
+            return len(self._episode_class_to_indices.get(int(label), ()))
+        return self.split_few_shot.get_num_videos_for_class(label)
+
+    def _get_episode_video(self, label, idx=-1):
+        if not hasattr(self, "_episode_class_to_indices"):
+            return self.split_few_shot.get_rand_vid(label, idx)
+
+        indices = self._episode_class_to_indices.get(int(label), ())
+        if not indices:
+            raise ValueError("No videos found for class {}".format(label))
+        if idx == -1:
+            video_index = random.choice(indices)
+        elif idx < 0 or idx >= len(indices):
+            raise IndexError(
+                "Video index {} is out of range for class {} ({} videos)".format(
+                    idx, label, len(indices)
+                )
+            )
+        else:
+            video_index = indices[idx]
+        return self._episode_videos[video_index], video_index
+
     def _construct_dataset(self, cfg):
         self.dataset_name = self.cfg.TRAIN.DATASET
         self._num_clips = 1
@@ -150,6 +209,7 @@ class Few_shot(BaseVideoDataset):
                                 self._samples.append(line.strip())
                                 self._spatial_temporal_index.append(idx)
                 self.split_few_shot = Split_few_shot(lines, self.split, dataset=self.dataset_name)
+                self._freeze_episode_index()
                 logger.info("Dataset {} split {} loaded. Length {}.".format(self.dataset_name, self.split, len(self._samples)))
                 break
             except:
@@ -183,8 +243,7 @@ class Few_shot(BaseVideoDataset):
         if self.cfg.TRAIN.META_BATCH:
             """returns dict of support and target images and labels for a meta training task"""
             # select classes to use for this task
-            c = self.split_few_shot
-            classes = sorted(c.get_unique_classes())
+            classes = sorted(self._get_episode_classes())
             # Training episodes stay stochastic. Validation/test episodes must
             # be identical at every checkpoint, otherwise accuracy changes can
             # be caused by a new sampled episode set rather than the model.
@@ -217,7 +276,7 @@ class Few_shot(BaseVideoDataset):
                     target_timestamps = []
 
                     for bl, bc in enumerate(batch_classes):
-                        n_total = c.get_num_videos_for_class(bc)
+                        n_total = self._get_episode_num_videos(bc)
                         idxs = episode_rng.sample(
                             range(n_total), self.cfg.SUPPORT_SHOT + n_queries
                         )
@@ -387,9 +446,8 @@ class Few_shot(BaseVideoDataset):
 
     def get_seq(self, label, idx=-1):
         """Gets a single video sequence for a meta batch.  """
-        c = self.split_few_shot
         if self.cfg.TRAIN.META_BATCH:
-            paths, vid_id = c.get_rand_vid(label, idx)
+            paths, vid_id = self._get_episode_video(label, idx)
             if 'SSv2' in self.dataset_name:
                 video_path = os.path.join(self.data_root_dir, paths + getattr(self.cfg.DATA, "VIDEO_EXT", ".mp4"))
             else:
@@ -468,9 +526,8 @@ class Few_shot(BaseVideoDataset):
 
     def get_seq_query(self, label, idx=-1):
         """Gets a single video sequence for a meta batch.  """
-        c = self.split_few_shot
         if self.cfg.TRAIN.META_BATCH:
-            paths, vid_id = c.get_rand_vid(label, idx)
+            paths, vid_id = self._get_episode_video(label, idx)
             if 'SSv2' in self.dataset_name:
                 video_path = os.path.join(self.data_root_dir, paths + getattr(self.cfg.DATA, "VIDEO_EXT", ".mp4"))
             else:
@@ -553,6 +610,8 @@ class Few_shot(BaseVideoDataset):
         elif hasattr(self.cfg.TRAIN, "NUM_TEST_TASKS") and self.cfg.TRAIN.NUM_TEST_TASKS:
             return self.cfg.TRAIN.NUM_TEST_TASKS
         else:
+            if hasattr(self, "_episode_videos"):
+                return len(self._episode_videos)
             return len(self.split_few_shot)  # len(self._samples)
 
     def _config_transform(self):

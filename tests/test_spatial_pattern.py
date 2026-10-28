@@ -77,6 +77,7 @@ def make_feature_model(detach=True, enabled=True):
     model.task_match_enable = False
     model.multi_velocity_enable = False
     model.proto_calib_enable = False
+    model.support_aggregation_enable = False
     model.spatial_pattern_enable = enabled
     model.spatial_pattern_detach_input = detach
     model.spatial_pattern_matcher = Matcher(3, grid_size=2)
@@ -128,6 +129,50 @@ class SpatialPatternTests(unittest.TestCase):
         ordered = matcher(support, support, labels)
         reversed_video = matcher(support, support.flip(1), labels)
         self.assertGreater(ordered.item(), reversed_video.item())
+
+    def test_per_support_bimhm_matches_legacy_for_one_shot(self):
+        model = ViT.__new__(ViT)
+        nn.Module.__init__(model)
+        model.num_frames = 3
+        model.extract_class_indices = MethodType(
+            lambda self, labels, label: torch.nonzero(labels == label).reshape(-1),
+            model,
+        )
+        support = torch.randn(5, 3, 6)
+        query = torch.randn(4, 3, 6)
+        labels = torch.arange(5)
+        expected = model._bimhm_class_dist(support, query, labels)
+        actual = model._bimhm_class_dist_per_support(support, query, labels)
+        torch.testing.assert_close(actual, expected)
+
+    def test_per_support_bimhm_averages_video_distances_and_backpropagates(self):
+        model = ViT.__new__(ViT)
+        nn.Module.__init__(model)
+        model.num_frames = 3
+        support = torch.randn(6, 3, 6, requires_grad=True)
+        query = torch.randn(2, 3, 6, requires_grad=True)
+        labels = torch.tensor([0, 0, 0, 1, 1, 1])
+        actual = model._bimhm_class_dist_per_support(support, query, labels)
+
+        individual_distances = []
+        for support_video in support:
+            similarity = torch.einsum(
+                "qtd,ud->qtu", F.normalize(query, dim=-1),
+                F.normalize(support_video, dim=-1),
+            )
+            distance = 1 - similarity
+            individual_distances.append(
+                distance.min(2)[0].sum(1) + distance.min(1)[0].sum(1)
+            )
+        individual_distances = torch.stack(individual_distances, dim=1)
+        expected = torch.stack([
+            individual_distances[:, labels == label].mean(dim=1)
+            for label in torch.unique(labels)
+        ], dim=1)
+        torch.testing.assert_close(actual, expected)
+        actual.sum().backward()
+        self.assertTrue(torch.isfinite(support.grad).all())
+        self.assertTrue(torch.isfinite(query.grad).all())
 
     def test_matching_axes_and_scale_against_reference(self):
         matcher = Matcher(3)
@@ -277,6 +322,17 @@ class SpatialPatternTests(unittest.TestCase):
                 expected = {key: value for key, value in original.items()
                             if key not in {'OUTPUT_DIR', 'CUDA_VISIBLE_DEVICES', 'INIT_METHOD'}}
                 self.assertEqual(changed, expected)
+
+    def test_support_aggregation_config_matches_baseline_settings(self):
+        config_dir = ROOT / 'config/ssv2_full'
+        baseline = yaml.safe_load((config_dir / 'ViT_SSv2_full.yaml').read_text())
+        experiment = yaml.safe_load(
+            (config_dir / 'ViT_SSv2_full_SUPPORT_AGGREGATION.yaml').read_text()
+        )
+        self.assertEqual(experiment.pop('SUPPORT_AGGREGATION'), {'ENABLE': True})
+        self.assertEqual(experiment.pop('OUTPUT_DIR'),
+                         'output/SSv2_Full_SUPPORT_AGGREGATION')
+        self.assertEqual(experiment, baseline)
 
     def test_paired_meter_counts_and_episode_uncertainty(self):
         meter = SpatialPatternMeter()

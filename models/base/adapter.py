@@ -1100,6 +1100,10 @@ class ViT_CLIP(nn.Module):
         self.positional_embedding = nn.Parameter(scale * torch.randn((cfg.DATA.TRAIN_CROP_SIZE // self.patch_size) ** 2 + 1, self.width))
         self.ln_pre = LayerNorm(self.width)
         self.num_frames = cfg.DATA.NUM_INPUT_FRAMES
+        self.support_aggregation_enable = (
+            hasattr(cfg, "SUPPORT_AGGREGATION")
+            and getattr(cfg.SUPPORT_AGGREGATION, "ENABLE", False)
+        )
         self.temporal_embedding = nn.Parameter(torch.zeros(1, self.num_frames, self.width))
         self.transformer = Transformer(cfg)
         self.ln_post = LayerNorm(self.width)
@@ -1346,6 +1350,22 @@ class ViT_CLIP(nn.Module):
         dist = 1 - frame_sim
         return dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
 
+    def _bimhm_class_dist_per_support(
+        self, support_features, query_features, support_labels
+    ):
+        """Match each support video independently, then average class distances."""
+        support_norm = F.normalize(support_features, dim=-1)
+        query_norm = F.normalize(query_features, dim=-1)
+        frame_sim = torch.einsum("qtd,sud->qstu", query_norm, support_norm)
+        dist = 1 - frame_sim
+        support_dist = dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
+
+        class_distances = [
+            support_dist[:, support_labels == label].mean(dim=1)
+            for label in torch.unique(support_labels)
+        ]
+        return torch.stack(class_distances, dim=1)
+
     def get_feat(self, x, return_patch_tokens=False):
         x = self.conv1(x)  # b*t c h w
         x = rearrange(x, 'b c h w -> b (h w) c')
@@ -1413,20 +1433,25 @@ class ViT_CLIP(nn.Module):
         if hasattr(self.args.TRAIN, "USE_CLASSIFICATION_VALUE"):
             class_logits = self.classification_layer(torch.cat([torch.mean(support_features, dim=1), torch.mean(query_features, dim=1)], 0))
 
-        support_features = [torch.mean(torch.index_select(support_features, 0, self.extract_class_indices(support_labels, c)), dim=0) for c in unique_labels]
-        support_features = torch.stack(support_features)
+        if self.support_aggregation_enable:
+            class_dist = self._bimhm_class_dist_per_support(
+                support_features, query_features, support_labels
+            )
+        else:
+            support_features = [torch.mean(torch.index_select(support_features, 0, self.extract_class_indices(support_labels, c)), dim=0) for c in unique_labels]
+            support_features = torch.stack(support_features)
 
-        support_num = support_features.shape[0]
-        query_num = query_features.shape[0]
+            support_num = support_features.shape[0]
+            query_num = query_features.shape[0]
 
-        support_features = support_features.unsqueeze(0).repeat(query_num, 1, 1, 1)
-        support_features = rearrange(support_features, 'q s t c -> q (s t) c')
+            support_features = support_features.unsqueeze(0).repeat(query_num, 1, 1, 1)
+            support_features = rearrange(support_features, 'q s t c -> q (s t) c')
 
-        frame_sim = torch.matmul(F.normalize(support_features, dim=2), F.normalize(query_features, dim=2).permute(0, 2, 1)).reshape(query_num, support_num, self.num_frames, self.num_frames)
-        dist = 1 - frame_sim
+            frame_sim = torch.matmul(F.normalize(support_features, dim=2), F.normalize(query_features, dim=2).permute(0, 2, 1)).reshape(query_num, support_num, self.num_frames, self.num_frames)
+            dist = 1 - frame_sim
 
-        # Bi-MHM
-        class_dist = dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
+            # Bi-MHM
+            class_dist = dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
 
         # OTAM
         # class_dist = OTAM_dist(dist) + OTAM_dist(rearrange(dist, 'q s n m -> q s m n'))

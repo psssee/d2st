@@ -1,0 +1,818 @@
+[10/29 22:26:23][INFO] test_net_few_shot:  121: TEST with config:
+[10/29 22:26:23][INFO] test_net_few_shot:  122: {
+  "TASK_TYPE": "few_shot_action",
+  "PRETRAIN": {
+    "ENABLE": false
+  },
+  "LOCALIZATION": {
+    "ENABLE": false
+  },
+  "TRAIN": {
+    "ENABLE": true,
+    "DATASET": "SSv2-Full",
+    "BATCH_SIZE": 1,
+    "LOG_FILE": "train.log",
+    "EVAL_PERIOD": 2,
+    "NUM_FOLDS": 1,
+    "AUTO_RESUME": true,
+    "CHECKPOINT_PERIOD": 10,
+    "CHECKPOINT_FILE_PATH": "",
+    "CHECKPOINT_TYPE": "pytorch",
+    "CHECKPOINT_INFLATE": false,
+    "CHECKPOINT_PRE_PROCESS": {
+      "ENABLE": false
+    },
+    "FINE_TUNE": true,
+    "ONLY_LINEAR": false,
+    "LR_REDUCE": false,
+    "TRAIN_VAL_COMBINE": false,
+    "LOSS_FUNC": "cross_entropy",
+    "USE_CLASSIFICATION_VALUE": 2.0,
+    "GRADIENT_CHECKPOINT": true,
+    "NUM_CLASS": 64,
+    "META_BATCH": true,
+    "WAY": 5,
+    "SHOT": 1,
+    "QUERY_PER_CLASS": 1,
+    "QUERY_PER_CLASS_TEST": 1,
+    "NUM_TRAIN_TASKS": 30000,
+    "NUM_TEST_TASKS": 10000,
+    "VAL_FRE_ITER": 10000,
+    "BATCH_SIZE_PER_TASK": 4
+  },
+  "TEST": {
+    "ENABLE": true,
+    "DATASET": "SSv2-Full",
+    "BATCH_SIZE": 1,
+    "NUM_SPATIAL_CROPS": 1,
+    "SPATIAL_CROPS": "cctltr",
+    "NUM_ENSEMBLE_VIEWS": 1,
+    "LOG_FILE": "test.log",
+    "CHECKPOINT_FILE_PATH": "",
+    "CHECKPOINT_TYPE": "pytorch",
+    "AUTOMATIC_MULTI_SCALE_TEST": false,
+    "TEST_SET": "val",
+    "UPLOAD_CLASSIFIER_RESULTS": true,
+    "SHOT": [
+      1,
+      5
+    ],
+    "EPISODE_SEED": 2026
+  },
+  "VISUALIZATION": {
+    "ENABLE": false,
+    "NAME": "",
+    "FEATURE_MAPS": {
+      "ENABLE": false,
+      "BASE_OUTPUT_DIR": ""
+    }
+  },
+  "SUBMISSION": {
+    "ENABLE": false,
+    "SAVE_RESULTS_PATH": "test.json"
+  },
+  "DATA": {
+    "DATA_ROOT_DIR": "/mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/",
+    "ANNO_DIR": "config/ssv2_full/",
+    "NUM_INPUT_FRAMES": 8,
+    "NUM_INPUT_CHANNELS": 2304,
+    "SAMPLING_MODE": "interval_based",
+    "SAMPLING_RATE": 50,
+    "TRAIN_JITTER_SCALES": [
+      256,
+      256
+    ],
+    "TRAIN_CROP_SIZE": 224,
+    "TEST_SCALE": 256,
+    "TEST_CROP_SIZE": 224,
+    "MEAN": [
+      0.48145466,
+      0.4578275,
+      0.40821073
+    ],
+    "STD": [
+      0.26862954,
+      0.26130258,
+      0.27577711
+    ],
+    "MULTI_LABEL": false,
+    "ENSEMBLE_METHOD": "sum",
+    "TARGET_FPS": 12,
+    "MINUS_INTERVAL": false,
+    "FPS": 12,
+    "NORM_FEATURE": false,
+    "USE_AUG_FEATURE": false,
+    "AUG": false,
+    "LOAD_PROPS": false,
+    "TEMPORAL_SCALE": 256,
+    "LABELS_TYPE": "cls",
+    "LOAD_TYPE": "pickle",
+    "DOWNLOAD_FEATURE": true,
+    "VIDEO_EXT": ".webm",
+    "SAMPLING_UNIFORM": false,
+    "TEST_CENTER_CROP": true,
+    "CLIP_INTERVAL": 8
+  },
+  "MODEL": {
+    "NAME": "BaseVideoModel",
+    "EMA": {
+      "ENABLE": false,
+      "DECAY": 0.99996
+    }
+  },
+  "VIDEO": {
+    "BACKBONE": {
+      "DEPTH": null,
+      "META_ARCH": "Identity",
+      "NUM_FILTERS": null,
+      "NUM_INPUT_CHANNELS": 3,
+      "NUM_OUT_FEATURES": null,
+      "KERNEL_SIZE": null,
+      "DOWNSAMPLING": null,
+      "DOWNSAMPLING_TEMPORAL": null,
+      "NUM_STREAMS": 1,
+      "EXPANSION_RATIO": 2,
+      "BRANCH": {
+        "NAME": null
+      },
+      "STEM": {
+        "NAME": null
+      },
+      "NONLOCAL": {
+        "ENABLE": false,
+        "STAGES": [
+          5
+        ],
+        "MASK_ENABLE": false
+      },
+      "INITIALIZATION": null
+    },
+    "HEAD": {
+      "NAME": "BaseTemporalClassifier",
+      "ACTIVATION": "softmax",
+      "DROPOUT_RATE": 0.0,
+      "NUM_CLASSES": 200
+    }
+  },
+  "OPTIMIZER": {
+    "ADJUST_LR": false,
+    "BASE_LR": 0.002,
+    "LR_POLICY": "cosine",
+    "MAX_EPOCH": 300,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": "1e-3",
+    "WARMUP_EPOCHS": 10,
+    "WARMUP_START_LR": 0.0002,
+    "OPTIM_METHOD": "adam",
+    "DAMPENING": 0.0,
+    "NESTEROV": true
+  },
+  "BN": {
+    "WB_LOCK": false,
+    "FREEZE": false,
+    "WEIGHT_DECAY": 0.0,
+    "MOMENTUM": 0.1,
+    "EPS": "1e-3",
+    "SYNC": false
+  },
+  "DATA_LOADER": {
+    "NUM_WORKERS": 8,
+    "PIN_MEMORY": true,
+    "ENABLE_MULTI_THREAD_DECODE": true,
+    "COLLATE_FN": null
+  },
+  "NUM_GPUS": 1,
+  "SHARD_ID": 0,
+  "NUM_SHARDS": 1,
+  "RANDOM_SEED": 18,
+  "OUTPUT_DIR": "output/SSv2_Full_SUPPORT_AGGREGATION",
+  "OUTPUT_CFG_FILE": "configuration.log",
+  "LOG_PERIOD": 200,
+  "DIST_BACKEND": "nccl",
+  "LOG_MODEL_INFO": false,
+  "LOG_CONFIG_INFO": true,
+  "OSS": {
+    "ENABLE": false,
+    "KEY": null,
+    "SECRET": null,
+    "ENDPOINT": null,
+    "CHECKPOINT_OUTPUT_PATH": null,
+    "SECONDARY_DATA_OSS": {
+      "ENABLE": false,
+      "KEY": null,
+      "SECRET": null,
+      "ENDPOINT": null,
+      "BUCKETS": [
+        ""
+      ]
+    }
+  },
+  "AUGMENTATION": {
+    "COLOR_AUG": false,
+    "BRIGHTNESS": 0.5,
+    "CONTRAST": 0.5,
+    "SATURATION": 0.5,
+    "HUE": 0.25,
+    "GRAYSCALE": 0.3,
+    "CONSISTENT": true,
+    "SHUFFLE": true,
+    "GRAY_FIRST": true,
+    "RATIO": [
+      0.857142857142857,
+      1.1666666666666667
+    ],
+    "USE_GPU": false,
+    "MIXUP": {
+      "ENABLE": false,
+      "ALPHA": 0.0,
+      "PROB": 1.0,
+      "MODE": "batch",
+      "SWITCH_PROB": 0.5
+    },
+    "CUTMIX": {
+      "ENABLE": false,
+      "ALPHA": 0.0,
+      "MINMAX": null
+    },
+    "RANDOM_ERASING": {
+      "ENABLE": false,
+      "PROB": 0.25,
+      "MODE": "const",
+      "COUNT": [
+        1,
+        1
+      ],
+      "NUM_SPLITS": 0,
+      "AREA_RANGE": [
+        0.02,
+        0.33
+      ],
+      "MIN_ASPECT": 0.3
+    },
+    "LABEL_SMOOTHING": 0.0,
+    "SSV2_FLIP": false,
+    "IS_SPLIT": false,
+    "NO_RANDOM_ERASE": true,
+    "SUPPORT_QUERY_DIFF": true
+  },
+  "PAI": false,
+  "USE_MULTISEG_VAL_DIST": false,
+  "DETECTION": {
+    "ENABLE": false
+  },
+  "TENSORBOARD": {
+    "ENABLE": false
+  },
+  "SOLVER": {
+    "BASE_LR": 0.001,
+    "LR_POLICY": "steps_with_relative_lrs",
+    "MAX_EPOCH": 10,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": "5e-4",
+    "WARMUP_EPOCHS": 1,
+    "WARMUP_START_LR": 0.0002,
+    "OPTIM_METHOD": "adam",
+    "DAMPENING": 0.0,
+    "NESTEROV": true,
+    "STEPS_ITER": 3000,
+    "STEPS": [
+      0,
+      4,
+      6,
+      8
+    ],
+    "LRS": [
+      1,
+      0.5,
+      0.1,
+      0.05
+    ]
+  },
+  "PRE_DOWNLOAD": {
+    "ENABLE": false
+  },
+  "SUPPORT_SHOT": 1,
+  "ADAPTER": {
+    "NAME": "ViT_CLIP",
+    "PRETRAINED": "ViT-B/16",
+    "WIDTH": 768,
+    "PATCH_SIZE": 16,
+    "LAYERS": 12,
+    "HEADS": 12,
+    "ADAPTER_SCALE": 0.25
+  },
+  "SUPPORT_AGGREGATION": {
+    "ENABLE": true
+  },
+  "INIT_METHOD": "tcp://localhost:1111",
+  "CUDA_VISIBLE_DEVICES": "1"
+}
+
+[10/29 22:26:23][INFO] models.base.adapter: 1301: load model from: ViT-B/16
+[10/29 22:26:24][INFO] models.base.adapter: 1308: Missing keys: ['temporal_embedding', 'transformer.resblocks.0.Adapter.down.weight', 'transformer.resblocks.0.Adapter.down.bias', 'transformer.resblocks.0.Adapter.pos_embed.weight', 'transformer.resblocks.0.Adapter.pos_embed.bias', 'transformer.resblocks.0.Adapter.s_ln.weight', 'transformer.resblocks.0.Adapter.s_ln.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.0.Adapter.t_ln.weight', 'transformer.resblocks.0.Adapter.t_ln.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.0.Adapter.up.weight', 'transformer.resblocks.0.Adapter.up.bias', 'transformer.resblocks.1.Adapter.down.weight', 'transformer.resblocks.1.Adapter.down.bias', 'transformer.resblocks.1.Adapter.pos_embed.weight', 'transformer.resblocks.1.Adapter.pos_embed.bias', 'transformer.resblocks.1.Adapter.s_ln.weight', 'transformer.resblocks.1.Adapter.s_ln.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.1.Adapter.t_ln.weight', 'transformer.resblocks.1.Adapter.t_ln.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.1.Adapter.up.weight', 'transformer.resblocks.1.Adapter.up.bias', 'transformer.resblocks.2.Adapter.down.weight', 'transformer.resblocks.2.Adapter.down.bias', 'transformer.resblocks.2.Adapter.pos_embed.weight', 'transformer.resblocks.2.Adapter.pos_embed.bias', 'transformer.resblocks.2.Adapter.s_ln.weight', 'transformer.resblocks.2.Adapter.s_ln.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.2.Adapter.t_ln.weight', 'transformer.resblocks.2.Adapter.t_ln.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.2.Adapter.up.weight', 'transformer.resblocks.2.Adapter.up.bias', 'transformer.resblocks.3.Adapter.down.weight', 'transformer.resblocks.3.Adapter.down.bias', 'transformer.resblocks.3.Adapter.pos_embed.weight', 'transformer.resblocks.3.Adapter.pos_embed.bias', 'transformer.resblocks.3.Adapter.s_ln.weight', 'transformer.resblocks.3.Adapter.s_ln.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.3.Adapter.t_ln.weight', 'transformer.resblocks.3.Adapter.t_ln.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.3.Adapter.up.weight', 'transformer.resblocks.3.Adapter.up.bias', 'transformer.resblocks.4.Adapter.down.weight', 'transformer.resblocks.4.Adapter.down.bias', 'transformer.resblocks.4.Adapter.pos_embed.weight', 'transformer.resblocks.4.Adapter.pos_embed.bias', 'transformer.resblocks.4.Adapter.s_ln.weight', 'transformer.resblocks.4.Adapter.s_ln.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.4.Adapter.t_ln.weight', 'transformer.resblocks.4.Adapter.t_ln.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.4.Adapter.up.weight', 'transformer.resblocks.4.Adapter.up.bias', 'transformer.resblocks.5.Adapter.down.weight', 'transformer.resblocks.5.Adapter.down.bias', 'transformer.resblocks.5.Adapter.pos_embed.weight', 'transformer.resblocks.5.Adapter.pos_embed.bias', 'transformer.resblocks.5.Adapter.s_ln.weight', 'transformer.resblocks.5.Adapter.s_ln.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.5.Adapter.t_ln.weight', 'transformer.resblocks.5.Adapter.t_ln.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.5.Adapter.up.weight', 'transformer.resblocks.5.Adapter.up.bias', 'transformer.resblocks.6.Adapter.down.weight', 'transformer.resblocks.6.Adapter.down.bias', 'transformer.resblocks.6.Adapter.pos_embed.weight', 'transformer.resblocks.6.Adapter.pos_embed.bias', 'transformer.resblocks.6.Adapter.s_ln.weight', 'transformer.resblocks.6.Adapter.s_ln.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.6.Adapter.t_ln.weight', 'transformer.resblocks.6.Adapter.t_ln.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.6.Adapter.up.weight', 'transformer.resblocks.6.Adapter.up.bias', 'transformer.resblocks.7.Adapter.down.weight', 'transformer.resblocks.7.Adapter.down.bias', 'transformer.resblocks.7.Adapter.pos_embed.weight', 'transformer.resblocks.7.Adapter.pos_embed.bias', 'transformer.resblocks.7.Adapter.s_ln.weight', 'transformer.resblocks.7.Adapter.s_ln.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.7.Adapter.t_ln.weight', 'transformer.resblocks.7.Adapter.t_ln.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.7.Adapter.up.weight', 'transformer.resblocks.7.Adapter.up.bias', 'transformer.resblocks.8.Adapter.down.weight', 'transformer.resblocks.8.Adapter.down.bias', 'transformer.resblocks.8.Adapter.pos_embed.weight', 'transformer.resblocks.8.Adapter.pos_embed.bias', 'transformer.resblocks.8.Adapter.s_ln.weight', 'transformer.resblocks.8.Adapter.s_ln.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.8.Adapter.t_ln.weight', 'transformer.resblocks.8.Adapter.t_ln.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.8.Adapter.up.weight', 'transformer.resblocks.8.Adapter.up.bias', 'transformer.resblocks.9.Adapter.down.weight', 'transformer.resblocks.9.Adapter.down.bias', 'transformer.resblocks.9.Adapter.pos_embed.weight', 'transformer.resblocks.9.Adapter.pos_embed.bias', 'transformer.resblocks.9.Adapter.s_ln.weight', 'transformer.resblocks.9.Adapter.s_ln.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.9.Adapter.t_ln.weight', 'transformer.resblocks.9.Adapter.t_ln.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.9.Adapter.up.weight', 'transformer.resblocks.9.Adapter.up.bias', 'transformer.resblocks.10.Adapter.down.weight', 'transformer.resblocks.10.Adapter.down.bias', 'transformer.resblocks.10.Adapter.pos_embed.weight', 'transformer.resblocks.10.Adapter.pos_embed.bias', 'transformer.resblocks.10.Adapter.s_ln.weight', 'transformer.resblocks.10.Adapter.s_ln.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.10.Adapter.t_ln.weight', 'transformer.resblocks.10.Adapter.t_ln.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.10.Adapter.up.weight', 'transformer.resblocks.10.Adapter.up.bias', 'transformer.resblocks.11.Adapter.down.weight', 'transformer.resblocks.11.Adapter.down.bias', 'transformer.resblocks.11.Adapter.pos_embed.weight', 'transformer.resblocks.11.Adapter.pos_embed.bias', 'transformer.resblocks.11.Adapter.s_ln.weight', 'transformer.resblocks.11.Adapter.s_ln.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.11.Adapter.t_ln.weight', 'transformer.resblocks.11.Adapter.t_ln.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.11.Adapter.up.weight', 'transformer.resblocks.11.Adapter.up.bias', 'classification_layer.weight', 'classification_layer.bias']
+[10/29 22:26:24][INFO] models.base.adapter: 1309: Unexpected keys: []
+[10/29 22:26:24][INFO] models.base.adapter: 1310: => loaded successfully 'ViT-B/16'
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.0.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.1.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.2.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.3.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.4.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.5.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.6.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.7.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.8.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.9.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.10.Adapter.up
+[10/29 22:26:24][INFO] models.base.adapter: 1317: init:  transformer.resblocks.11.Adapter.up
+[10/29 22:26:24][INFO] utils.checkpoint:  346: Keys in model not matched: []
+[10/29 22:26:24][INFO] utils.checkpoint:  347: Keys in checkpoint not matched: []
+[10/29 22:26:24][INFO] utils.checkpoint:  349: Model ema weights not loaded because no ema state stored in checkpoint.
+[10/29 22:26:24][INFO] utils.checkpoint:  501: Load from the last checkpoint file: output/SSv2_Full_SUPPORT_AGGREGATION/checkpoints/checkpoint_best.pyth
+[10/29 22:26:24][INFO] datasets.base.few_shot_dataset:  105: Reading video list from file: test_few_shot.txt
+[10/29 22:26:24][INFO] datasets.base.few_shot_dataset:  186: Loading SSv2-Full dataset list for split 'test'...
+[10/29 22:26:24][INFO] datasets.base.few_shot_dataset:   47: loaded 2857 videos from test dataset: SSv2-Full !
+[10/29 22:26:24][INFO] datasets.base.few_shot_dataset:  213: Dataset SSv2-Full split test loaded. Length 2857.
+[10/29 22:26:48][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "200/10000", "top1_acc": 65.100001}
+[10/29 22:27:11][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "400/10000", "top1_acc": 63.400001}
+[10/29 22:27:35][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "600/10000", "top1_acc": 65.200001}
+[10/29 22:27:58][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "800/10000", "top1_acc": 66.100002}
+[10/29 22:28:21][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "1000/10000", "top1_acc": 68.500002}
+[10/29 22:28:45][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "1200/10000", "top1_acc": 64.400001}
+[10/29 22:29:08][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "1400/10000", "top1_acc": 64.700001}
+[10/29 22:29:31][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "1600/10000", "top1_acc": 65.400001}
+[10/29 22:29:54][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "1800/10000", "top1_acc": 66.000001}
+[10/29 22:30:18][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "2000/10000", "top1_acc": 65.700001}
+[10/29 22:30:41][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "2200/10000", "top1_acc": 62.500001}
+[10/29 22:31:04][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "2400/10000", "top1_acc": 62.900001}
+[10/29 22:31:27][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "2600/10000", "top1_acc": 66.100001}
+[10/29 22:31:51][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "2800/10000", "top1_acc": 68.000001}
+[10/29 22:32:14][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "3000/10000", "top1_acc": 65.500001}
+[10/29 22:32:37][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "3200/10000", "top1_acc": 66.400001}
+[10/29 22:33:00][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "3400/10000", "top1_acc": 67.000001}
+[10/29 22:33:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "3600/10000", "top1_acc": 66.200001}
+[10/29 22:33:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "3800/10000", "top1_acc": 64.200001}
+[10/29 22:34:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "4000/10000", "top1_acc": 69.700001}
+[10/29 22:34:34][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "4200/10000", "top1_acc": 64.500001}
+[10/29 22:34:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "4400/10000", "top1_acc": 66.400001}
+[10/29 22:35:20][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "4600/10000", "top1_acc": 67.600001}
+[10/29 22:35:44][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "4800/10000", "top1_acc": 66.300001}
+[10/29 22:36:07][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "5000/10000", "top1_acc": 67.300001}
+[10/29 22:36:30][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "5200/10000", "top1_acc": 66.700002}
+[10/29 22:36:53][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "5400/10000", "top1_acc": 65.300001}
+[10/29 22:37:17][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "5600/10000", "top1_acc": 64.400001}
+[10/29 22:37:40][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "5800/10000", "top1_acc": 65.500001}
+[10/29 22:38:03][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "6000/10000", "top1_acc": 67.700001}
+[10/29 22:38:26][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "6200/10000", "top1_acc": 64.400001}
+[10/29 22:38:50][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "6400/10000", "top1_acc": 63.200001}
+[10/29 22:39:13][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "6600/10000", "top1_acc": 65.700001}
+[10/29 22:39:36][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "6800/10000", "top1_acc": 66.900001}
+[10/29 22:40:00][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "7000/10000", "top1_acc": 65.200001}
+[10/29 22:40:23][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "7200/10000", "top1_acc": 62.300001}
+[10/29 22:40:46][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "7400/10000", "top1_acc": 65.900001}
+[10/29 22:41:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "7600/10000", "top1_acc": 67.300001}
+[10/29 22:41:33][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "7800/10000", "top1_acc": 63.200001}
+[10/29 22:41:56][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "8000/10000", "top1_acc": 66.500002}
+[10/29 22:42:19][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "8200/10000", "top1_acc": 66.400001}
+[10/29 22:42:43][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "8400/10000", "top1_acc": 65.600001}
+[10/29 22:43:06][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "8600/10000", "top1_acc": 65.800001}
+[10/29 22:43:29][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "8800/10000", "top1_acc": 65.100001}
+[10/29 22:43:53][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "9000/10000", "top1_acc": 64.700001}
+[10/29 22:44:16][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "9200/10000", "top1_acc": 69.700002}
+[10/29 22:44:39][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "9400/10000", "top1_acc": 66.100001}
+[10/29 22:45:02][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "9600/10000", "top1_acc": 67.700001}
+[10/29 22:45:26][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "9800/10000", "top1_acc": 65.300001}
+[10/29 22:45:49][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "1.78 GB", "iter": "10000/10000", "top1_acc": 66.000001}
+[10/29 22:45:49][INFO] utils.logging:   91: {"RAM": "11.91/125.63 GB", "_type": "val_epoch", "epoch": "1", "gpu_mem": "1.78 GB", "top1_acc": 65.754001}
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 10.0, acc: 0.4674698795180723
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 3.0, acc: 0.4811594202898551
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 23.0, acc: 0.7912442396313364
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 8.0, acc: 0.9209621993127147
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 16.0, acc: 0.8072573044297833
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 18.0, acc: 0.8498800959232614
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 4.0, acc: 0.6139759036144579
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 13.0, acc: 0.5255052935514918
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 1.0, acc: 0.595260663507109
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 20.0, acc: 0.6668226485727655
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 17.0, acc: 0.6942551119766309
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 12.0, acc: 0.32456552372005637
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 7.0, acc: 0.8551269990592663
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 15.0, acc: 0.43471882640586795
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 9.0, acc: 0.6845637583892618
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 21.0, acc: 0.674852652259332
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 6.0, acc: 0.6056407718951015
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 14.0, acc: 0.6566091954022989
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 22.0, acc: 0.6671442215854824
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 11.0, acc: 0.6924916307986609
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 5.0, acc: 0.671078431372549
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 2.0, acc: 0.8173449612403101
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 19.0, acc: 0.4528301886792453
+[10/29 22:45:49][INFO] test_net_few_shot:  101: class: 0.0, acc: 0.8228571428571428
+[10/29 22:45:49][INFO] test_net_few_shot:  121: TEST with config:
+[10/29 22:45:49][INFO] test_net_few_shot:  122: {
+  "TASK_TYPE": "few_shot_action",
+  "PRETRAIN": {
+    "ENABLE": false
+  },
+  "LOCALIZATION": {
+    "ENABLE": false
+  },
+  "TRAIN": {
+    "ENABLE": true,
+    "DATASET": "SSv2-Full",
+    "BATCH_SIZE": 1,
+    "LOG_FILE": "train.log",
+    "EVAL_PERIOD": 2,
+    "NUM_FOLDS": 1,
+    "AUTO_RESUME": true,
+    "CHECKPOINT_PERIOD": 10,
+    "CHECKPOINT_FILE_PATH": "",
+    "CHECKPOINT_TYPE": "pytorch",
+    "CHECKPOINT_INFLATE": false,
+    "CHECKPOINT_PRE_PROCESS": {
+      "ENABLE": false
+    },
+    "FINE_TUNE": true,
+    "ONLY_LINEAR": false,
+    "LR_REDUCE": false,
+    "TRAIN_VAL_COMBINE": false,
+    "LOSS_FUNC": "cross_entropy",
+    "USE_CLASSIFICATION_VALUE": 2.0,
+    "GRADIENT_CHECKPOINT": true,
+    "NUM_CLASS": 64,
+    "META_BATCH": true,
+    "WAY": 5,
+    "SHOT": 1,
+    "QUERY_PER_CLASS": 1,
+    "QUERY_PER_CLASS_TEST": 1,
+    "NUM_TRAIN_TASKS": 30000,
+    "NUM_TEST_TASKS": 10000,
+    "VAL_FRE_ITER": 10000,
+    "BATCH_SIZE_PER_TASK": 4
+  },
+  "TEST": {
+    "ENABLE": true,
+    "DATASET": "SSv2-Full",
+    "BATCH_SIZE": 1,
+    "NUM_SPATIAL_CROPS": 1,
+    "SPATIAL_CROPS": "cctltr",
+    "NUM_ENSEMBLE_VIEWS": 1,
+    "LOG_FILE": "test.log",
+    "CHECKPOINT_FILE_PATH": "",
+    "CHECKPOINT_TYPE": "pytorch",
+    "AUTOMATIC_MULTI_SCALE_TEST": false,
+    "TEST_SET": "val",
+    "UPLOAD_CLASSIFIER_RESULTS": true,
+    "SHOT": [
+      1,
+      5
+    ],
+    "EPISODE_SEED": 2026
+  },
+  "VISUALIZATION": {
+    "ENABLE": false,
+    "NAME": "",
+    "FEATURE_MAPS": {
+      "ENABLE": false,
+      "BASE_OUTPUT_DIR": ""
+    }
+  },
+  "SUBMISSION": {
+    "ENABLE": false,
+    "SAVE_RESULTS_PATH": "test.json"
+  },
+  "DATA": {
+    "DATA_ROOT_DIR": "/mnt/data/yanyi2025/lrc/action_data/ssv2/videos/videos/",
+    "ANNO_DIR": "config/ssv2_full/",
+    "NUM_INPUT_FRAMES": 8,
+    "NUM_INPUT_CHANNELS": 2304,
+    "SAMPLING_MODE": "interval_based",
+    "SAMPLING_RATE": 50,
+    "TRAIN_JITTER_SCALES": [
+      256,
+      256
+    ],
+    "TRAIN_CROP_SIZE": 224,
+    "TEST_SCALE": 256,
+    "TEST_CROP_SIZE": 224,
+    "MEAN": [
+      0.48145466,
+      0.4578275,
+      0.40821073
+    ],
+    "STD": [
+      0.26862954,
+      0.26130258,
+      0.27577711
+    ],
+    "MULTI_LABEL": false,
+    "ENSEMBLE_METHOD": "sum",
+    "TARGET_FPS": 12,
+    "MINUS_INTERVAL": false,
+    "FPS": 12,
+    "NORM_FEATURE": false,
+    "USE_AUG_FEATURE": false,
+    "AUG": false,
+    "LOAD_PROPS": false,
+    "TEMPORAL_SCALE": 256,
+    "LABELS_TYPE": "cls",
+    "LOAD_TYPE": "pickle",
+    "DOWNLOAD_FEATURE": true,
+    "VIDEO_EXT": ".webm",
+    "SAMPLING_UNIFORM": false,
+    "TEST_CENTER_CROP": true,
+    "CLIP_INTERVAL": 8
+  },
+  "MODEL": {
+    "NAME": "BaseVideoModel",
+    "EMA": {
+      "ENABLE": false,
+      "DECAY": 0.99996
+    }
+  },
+  "VIDEO": {
+    "BACKBONE": {
+      "DEPTH": null,
+      "META_ARCH": "Identity",
+      "NUM_FILTERS": null,
+      "NUM_INPUT_CHANNELS": 3,
+      "NUM_OUT_FEATURES": null,
+      "KERNEL_SIZE": null,
+      "DOWNSAMPLING": null,
+      "DOWNSAMPLING_TEMPORAL": null,
+      "NUM_STREAMS": 1,
+      "EXPANSION_RATIO": 2,
+      "BRANCH": {
+        "NAME": null
+      },
+      "STEM": {
+        "NAME": null
+      },
+      "NONLOCAL": {
+        "ENABLE": false,
+        "STAGES": [
+          5
+        ],
+        "MASK_ENABLE": false
+      },
+      "INITIALIZATION": null
+    },
+    "HEAD": {
+      "NAME": "BaseTemporalClassifier",
+      "ACTIVATION": "softmax",
+      "DROPOUT_RATE": 0.0,
+      "NUM_CLASSES": 200
+    }
+  },
+  "OPTIMIZER": {
+    "ADJUST_LR": false,
+    "BASE_LR": 0.002,
+    "LR_POLICY": "cosine",
+    "MAX_EPOCH": 300,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": "1e-3",
+    "WARMUP_EPOCHS": 10,
+    "WARMUP_START_LR": 0.0002,
+    "OPTIM_METHOD": "adam",
+    "DAMPENING": 0.0,
+    "NESTEROV": true
+  },
+  "BN": {
+    "WB_LOCK": false,
+    "FREEZE": false,
+    "WEIGHT_DECAY": 0.0,
+    "MOMENTUM": 0.1,
+    "EPS": "1e-3",
+    "SYNC": false
+  },
+  "DATA_LOADER": {
+    "NUM_WORKERS": 8,
+    "PIN_MEMORY": true,
+    "ENABLE_MULTI_THREAD_DECODE": true,
+    "COLLATE_FN": null
+  },
+  "NUM_GPUS": 1,
+  "SHARD_ID": 0,
+  "NUM_SHARDS": 1,
+  "RANDOM_SEED": 18,
+  "OUTPUT_DIR": "output/SSv2_Full_SUPPORT_AGGREGATION",
+  "OUTPUT_CFG_FILE": "configuration.log",
+  "LOG_PERIOD": 200,
+  "DIST_BACKEND": "nccl",
+  "LOG_MODEL_INFO": false,
+  "LOG_CONFIG_INFO": true,
+  "OSS": {
+    "ENABLE": false,
+    "KEY": null,
+    "SECRET": null,
+    "ENDPOINT": null,
+    "CHECKPOINT_OUTPUT_PATH": null,
+    "SECONDARY_DATA_OSS": {
+      "ENABLE": false,
+      "KEY": null,
+      "SECRET": null,
+      "ENDPOINT": null,
+      "BUCKETS": [
+        ""
+      ]
+    }
+  },
+  "AUGMENTATION": {
+    "COLOR_AUG": false,
+    "BRIGHTNESS": 0.5,
+    "CONTRAST": 0.5,
+    "SATURATION": 0.5,
+    "HUE": 0.25,
+    "GRAYSCALE": 0.3,
+    "CONSISTENT": true,
+    "SHUFFLE": true,
+    "GRAY_FIRST": true,
+    "RATIO": [
+      0.857142857142857,
+      1.1666666666666667
+    ],
+    "USE_GPU": false,
+    "MIXUP": {
+      "ENABLE": false,
+      "ALPHA": 0.0,
+      "PROB": 1.0,
+      "MODE": "batch",
+      "SWITCH_PROB": 0.5
+    },
+    "CUTMIX": {
+      "ENABLE": false,
+      "ALPHA": 0.0,
+      "MINMAX": null
+    },
+    "RANDOM_ERASING": {
+      "ENABLE": false,
+      "PROB": 0.25,
+      "MODE": "const",
+      "COUNT": [
+        1,
+        1
+      ],
+      "NUM_SPLITS": 0,
+      "AREA_RANGE": [
+        0.02,
+        0.33
+      ],
+      "MIN_ASPECT": 0.3
+    },
+    "LABEL_SMOOTHING": 0.0,
+    "SSV2_FLIP": false,
+    "IS_SPLIT": false,
+    "NO_RANDOM_ERASE": true,
+    "SUPPORT_QUERY_DIFF": true
+  },
+  "PAI": false,
+  "USE_MULTISEG_VAL_DIST": false,
+  "DETECTION": {
+    "ENABLE": false
+  },
+  "TENSORBOARD": {
+    "ENABLE": false
+  },
+  "SOLVER": {
+    "BASE_LR": 0.001,
+    "LR_POLICY": "steps_with_relative_lrs",
+    "MAX_EPOCH": 10,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": "5e-4",
+    "WARMUP_EPOCHS": 1,
+    "WARMUP_START_LR": 0.0002,
+    "OPTIM_METHOD": "adam",
+    "DAMPENING": 0.0,
+    "NESTEROV": true,
+    "STEPS_ITER": 3000,
+    "STEPS": [
+      0,
+      4,
+      6,
+      8
+    ],
+    "LRS": [
+      1,
+      0.5,
+      0.1,
+      0.05
+    ]
+  },
+  "PRE_DOWNLOAD": {
+    "ENABLE": false
+  },
+  "SUPPORT_SHOT": 1,
+  "ADAPTER": {
+    "NAME": "ViT_CLIP",
+    "PRETRAINED": "ViT-B/16",
+    "WIDTH": 768,
+    "PATCH_SIZE": 16,
+    "LAYERS": 12,
+    "HEADS": 12,
+    "ADAPTER_SCALE": 0.25
+  },
+  "SUPPORT_AGGREGATION": {
+    "ENABLE": true
+  },
+  "INIT_METHOD": "tcp://localhost:1111",
+  "CUDA_VISIBLE_DEVICES": "1"
+}
+
+[10/29 22:45:49][INFO] models.base.adapter: 1301: load model from: ViT-B/16
+[10/29 22:45:50][INFO] models.base.adapter: 1308: Missing keys: ['temporal_embedding', 'transformer.resblocks.0.Adapter.down.weight', 'transformer.resblocks.0.Adapter.down.bias', 'transformer.resblocks.0.Adapter.pos_embed.weight', 'transformer.resblocks.0.Adapter.pos_embed.bias', 'transformer.resblocks.0.Adapter.s_ln.weight', 'transformer.resblocks.0.Adapter.s_ln.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.0.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.0.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.0.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.0.Adapter.t_ln.weight', 'transformer.resblocks.0.Adapter.t_ln.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.0.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.0.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.0.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.0.Adapter.up.weight', 'transformer.resblocks.0.Adapter.up.bias', 'transformer.resblocks.1.Adapter.down.weight', 'transformer.resblocks.1.Adapter.down.bias', 'transformer.resblocks.1.Adapter.pos_embed.weight', 'transformer.resblocks.1.Adapter.pos_embed.bias', 'transformer.resblocks.1.Adapter.s_ln.weight', 'transformer.resblocks.1.Adapter.s_ln.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.1.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.1.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.1.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.1.Adapter.t_ln.weight', 'transformer.resblocks.1.Adapter.t_ln.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.1.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.1.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.1.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.1.Adapter.up.weight', 'transformer.resblocks.1.Adapter.up.bias', 'transformer.resblocks.2.Adapter.down.weight', 'transformer.resblocks.2.Adapter.down.bias', 'transformer.resblocks.2.Adapter.pos_embed.weight', 'transformer.resblocks.2.Adapter.pos_embed.bias', 'transformer.resblocks.2.Adapter.s_ln.weight', 'transformer.resblocks.2.Adapter.s_ln.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.2.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.2.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.2.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.2.Adapter.t_ln.weight', 'transformer.resblocks.2.Adapter.t_ln.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.2.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.2.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.2.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.2.Adapter.up.weight', 'transformer.resblocks.2.Adapter.up.bias', 'transformer.resblocks.3.Adapter.down.weight', 'transformer.resblocks.3.Adapter.down.bias', 'transformer.resblocks.3.Adapter.pos_embed.weight', 'transformer.resblocks.3.Adapter.pos_embed.bias', 'transformer.resblocks.3.Adapter.s_ln.weight', 'transformer.resblocks.3.Adapter.s_ln.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.3.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.3.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.3.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.3.Adapter.t_ln.weight', 'transformer.resblocks.3.Adapter.t_ln.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.3.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.3.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.3.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.3.Adapter.up.weight', 'transformer.resblocks.3.Adapter.up.bias', 'transformer.resblocks.4.Adapter.down.weight', 'transformer.resblocks.4.Adapter.down.bias', 'transformer.resblocks.4.Adapter.pos_embed.weight', 'transformer.resblocks.4.Adapter.pos_embed.bias', 'transformer.resblocks.4.Adapter.s_ln.weight', 'transformer.resblocks.4.Adapter.s_ln.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.4.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.4.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.4.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.4.Adapter.t_ln.weight', 'transformer.resblocks.4.Adapter.t_ln.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.4.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.4.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.4.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.4.Adapter.up.weight', 'transformer.resblocks.4.Adapter.up.bias', 'transformer.resblocks.5.Adapter.down.weight', 'transformer.resblocks.5.Adapter.down.bias', 'transformer.resblocks.5.Adapter.pos_embed.weight', 'transformer.resblocks.5.Adapter.pos_embed.bias', 'transformer.resblocks.5.Adapter.s_ln.weight', 'transformer.resblocks.5.Adapter.s_ln.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.5.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.5.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.5.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.5.Adapter.t_ln.weight', 'transformer.resblocks.5.Adapter.t_ln.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.5.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.5.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.5.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.5.Adapter.up.weight', 'transformer.resblocks.5.Adapter.up.bias', 'transformer.resblocks.6.Adapter.down.weight', 'transformer.resblocks.6.Adapter.down.bias', 'transformer.resblocks.6.Adapter.pos_embed.weight', 'transformer.resblocks.6.Adapter.pos_embed.bias', 'transformer.resblocks.6.Adapter.s_ln.weight', 'transformer.resblocks.6.Adapter.s_ln.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.6.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.6.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.6.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.6.Adapter.t_ln.weight', 'transformer.resblocks.6.Adapter.t_ln.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.6.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.6.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.6.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.6.Adapter.up.weight', 'transformer.resblocks.6.Adapter.up.bias', 'transformer.resblocks.7.Adapter.down.weight', 'transformer.resblocks.7.Adapter.down.bias', 'transformer.resblocks.7.Adapter.pos_embed.weight', 'transformer.resblocks.7.Adapter.pos_embed.bias', 'transformer.resblocks.7.Adapter.s_ln.weight', 'transformer.resblocks.7.Adapter.s_ln.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.7.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.7.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.7.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.7.Adapter.t_ln.weight', 'transformer.resblocks.7.Adapter.t_ln.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.7.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.7.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.7.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.7.Adapter.up.weight', 'transformer.resblocks.7.Adapter.up.bias', 'transformer.resblocks.8.Adapter.down.weight', 'transformer.resblocks.8.Adapter.down.bias', 'transformer.resblocks.8.Adapter.pos_embed.weight', 'transformer.resblocks.8.Adapter.pos_embed.bias', 'transformer.resblocks.8.Adapter.s_ln.weight', 'transformer.resblocks.8.Adapter.s_ln.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.8.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.8.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.8.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.8.Adapter.t_ln.weight', 'transformer.resblocks.8.Adapter.t_ln.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.8.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.8.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.8.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.8.Adapter.up.weight', 'transformer.resblocks.8.Adapter.up.bias', 'transformer.resblocks.9.Adapter.down.weight', 'transformer.resblocks.9.Adapter.down.bias', 'transformer.resblocks.9.Adapter.pos_embed.weight', 'transformer.resblocks.9.Adapter.pos_embed.bias', 'transformer.resblocks.9.Adapter.s_ln.weight', 'transformer.resblocks.9.Adapter.s_ln.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.9.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.9.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.9.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.9.Adapter.t_ln.weight', 'transformer.resblocks.9.Adapter.t_ln.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.9.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.9.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.9.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.9.Adapter.up.weight', 'transformer.resblocks.9.Adapter.up.bias', 'transformer.resblocks.10.Adapter.down.weight', 'transformer.resblocks.10.Adapter.down.bias', 'transformer.resblocks.10.Adapter.pos_embed.weight', 'transformer.resblocks.10.Adapter.pos_embed.bias', 'transformer.resblocks.10.Adapter.s_ln.weight', 'transformer.resblocks.10.Adapter.s_ln.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.10.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.10.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.10.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.10.Adapter.t_ln.weight', 'transformer.resblocks.10.Adapter.t_ln.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.10.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.10.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.10.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.10.Adapter.up.weight', 'transformer.resblocks.10.Adapter.up.bias', 'transformer.resblocks.11.Adapter.down.weight', 'transformer.resblocks.11.Adapter.down.bias', 'transformer.resblocks.11.Adapter.pos_embed.weight', 'transformer.resblocks.11.Adapter.pos_embed.bias', 'transformer.resblocks.11.Adapter.s_ln.weight', 'transformer.resblocks.11.Adapter.s_ln.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.0.weight', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.0.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.1.norm.weight', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.1.norm.bias', 'transformer.resblocks.11.Adapter.s_attn.conv_offset.3.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_q.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_q.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_k.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_k.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_v.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_v.bias', 'transformer.resblocks.11.Adapter.s_attn.proj_out.weight', 'transformer.resblocks.11.Adapter.s_attn.proj_out.bias', 'transformer.resblocks.11.Adapter.t_ln.weight', 'transformer.resblocks.11.Adapter.t_ln.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.0.weight', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.0.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.1.norm.weight', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.1.norm.bias', 'transformer.resblocks.11.Adapter.t_attn.conv_offset.3.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_q.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_q.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_k.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_k.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_v.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_v.bias', 'transformer.resblocks.11.Adapter.t_attn.proj_out.weight', 'transformer.resblocks.11.Adapter.t_attn.proj_out.bias', 'transformer.resblocks.11.Adapter.up.weight', 'transformer.resblocks.11.Adapter.up.bias', 'classification_layer.weight', 'classification_layer.bias']
+[10/29 22:45:50][INFO] models.base.adapter: 1309: Unexpected keys: []
+[10/29 22:45:50][INFO] models.base.adapter: 1310: => loaded successfully 'ViT-B/16'
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.0.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.1.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.2.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.3.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.4.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.5.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.6.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.7.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.8.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.9.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.10.Adapter.up
+[10/29 22:45:50][INFO] models.base.adapter: 1317: init:  transformer.resblocks.11.Adapter.up
+[10/29 22:45:51][INFO] utils.checkpoint:  346: Keys in model not matched: []
+[10/29 22:45:51][INFO] utils.checkpoint:  347: Keys in checkpoint not matched: []
+[10/29 22:45:51][INFO] utils.checkpoint:  349: Model ema weights not loaded because no ema state stored in checkpoint.
+[10/29 22:45:51][INFO] utils.checkpoint:  501: Load from the last checkpoint file: output/SSv2_Full_SUPPORT_AGGREGATION/checkpoints/checkpoint_best.pyth
+[10/29 22:45:51][INFO] datasets.base.few_shot_dataset:  105: Reading video list from file: test_few_shot.txt
+[10/29 22:45:51][INFO] datasets.base.few_shot_dataset:  186: Loading SSv2-Full dataset list for split 'test'...
+[10/29 22:45:51][INFO] datasets.base.few_shot_dataset:   47: loaded 2857 videos from test dataset: SSv2-Full !
+[10/29 22:45:51][INFO] datasets.base.few_shot_dataset:  213: Dataset SSv2-Full split test loaded. Length 2857.
+[10/29 22:46:54][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "200/10000", "top1_acc": 79.200001}
+[10/29 22:47:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "400/10000", "top1_acc": 76.300001}
+[10/29 22:48:56][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "600/10000", "top1_acc": 80.400001}
+[10/29 22:49:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "800/10000", "top1_acc": 79.000001}
+[10/29 22:50:58][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "1000/10000", "top1_acc": 77.000001}
+[10/29 22:51:59][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "1200/10000", "top1_acc": 79.200001}
+[10/29 22:53:01][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "1400/10000", "top1_acc": 78.600002}
+[10/29 22:54:02][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "1600/10000", "top1_acc": 76.900002}
+[10/29 22:55:03][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "1800/10000", "top1_acc": 77.600001}
+[10/29 22:56:04][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "2000/10000", "top1_acc": 80.400001}
+[10/29 22:57:05][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "2200/10000", "top1_acc": 77.200002}
+[10/29 22:58:07][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "2400/10000", "top1_acc": 77.500002}
+[10/29 22:59:09][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "2600/10000", "top1_acc": 79.400001}
+[10/29 23:00:10][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "2800/10000", "top1_acc": 80.700001}
+[10/29 23:01:11][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "3000/10000", "top1_acc": 78.800002}
+[10/29 23:02:12][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "3200/10000", "top1_acc": 79.400001}
+[10/29 23:03:14][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "3400/10000", "top1_acc": 78.300002}
+[10/29 23:04:15][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "3600/10000", "top1_acc": 78.400001}
+[10/29 23:05:16][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "3800/10000", "top1_acc": 78.100001}
+[10/29 23:06:17][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "4000/10000", "top1_acc": 80.900001}
+[10/29 23:07:19][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "4200/10000", "top1_acc": 79.500001}
+[10/29 23:08:20][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "4400/10000", "top1_acc": 78.000001}
+[10/29 23:09:21][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "4600/10000", "top1_acc": 78.300002}
+[10/29 23:10:23][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.35 GB", "iter": "4800/10000", "top1_acc": 79.500001}
+[10/29 23:11:24][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "5000/10000", "top1_acc": 79.600001}
+[10/29 23:12:25][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "5200/10000", "top1_acc": 79.600002}
+[10/29 23:13:26][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "5400/10000", "top1_acc": 78.000002}
+[10/29 23:14:28][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "5600/10000", "top1_acc": 78.200001}
+[10/29 23:15:29][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "5800/10000", "top1_acc": 78.700001}
+[10/29 23:16:30][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "6000/10000", "top1_acc": 78.600001}
+[10/29 23:17:32][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "6200/10000", "top1_acc": 78.700001}
+[10/29 23:18:33][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "6400/10000", "top1_acc": 79.300002}
+[10/29 23:19:34][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "6600/10000", "top1_acc": 77.800002}
+[10/29 23:20:35][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "6800/10000", "top1_acc": 77.900002}
+[10/29 23:21:37][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "7000/10000", "top1_acc": 79.600001}
+[10/29 23:22:38][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "7200/10000", "top1_acc": 77.000002}
+[10/29 23:23:39][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "7400/10000", "top1_acc": 78.000001}
+[10/29 23:24:41][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "7600/10000", "top1_acc": 79.800001}
+[10/29 23:25:42][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "7800/10000", "top1_acc": 78.800001}
+[10/29 23:26:44][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "8000/10000", "top1_acc": 79.600001}
+[10/29 23:27:45][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "8200/10000", "top1_acc": 77.000001}
+[10/29 23:28:47][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "8400/10000", "top1_acc": 79.800001}
+[10/29 23:29:48][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "8600/10000", "top1_acc": 79.300002}
+[10/29 23:30:50][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "8800/10000", "top1_acc": 79.000001}
+[10/29 23:31:51][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "9000/10000", "top1_acc": 78.200001}
+[10/29 23:32:52][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "9200/10000", "top1_acc": 78.800002}
+[10/29 23:33:53][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "9400/10000", "top1_acc": 79.700001}
+[10/29 23:34:55][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "9600/10000", "top1_acc": 80.900001}
+[10/29 23:35:56][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "9800/10000", "top1_acc": 78.100001}
+[10/29 23:36:57][INFO] utils.logging:   91: {"_type": "val_iter", "gpu_mem": "2.36 GB", "iter": "10000/10000", "top1_acc": 79.500001}
+[10/29 23:36:57][INFO] utils.logging:   91: {"RAM": "14.64/125.63 GB", "_type": "val_epoch", "epoch": "1", "gpu_mem": "2.36 GB", "top1_acc": 78.762001}
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 16.0, acc: 0.8944392082940622
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 10.0, acc: 0.6096385542168675
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 3.0, acc: 0.5951690821256038
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 8.0, acc: 0.9808541973490427
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 23.0, acc: 0.9059907834101383
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 20.0, acc: 0.7819372952737482
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 1.0, acc: 0.7658767772511849
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 4.0, acc: 0.7787951807228916
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 13.0, acc: 0.6900866217516843
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 18.0, acc: 0.947242206235012
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 12.0, acc: 0.3687177078440582
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 17.0, acc: 0.8573515092502434
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 7.0, acc: 0.9524929444967074
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 15.0, acc: 0.541320293398533
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 9.0, acc: 0.8576222435282838
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 21.0, acc: 0.8393909626719057
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 6.0, acc: 0.7882236516575952
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 14.0, acc: 0.7993295019157088
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 22.0, acc: 0.8319006685768864
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 11.0, acc: 0.8359636537541846
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 5.0, acc: 0.8549019607843137
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 2.0, acc: 0.9331395348837209
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 19.0, acc: 0.5747460087082729
+[10/29 23:36:57][INFO] test_net_few_shot:  101: class: 0.0, acc: 0.9161904761904762

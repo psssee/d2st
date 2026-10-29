@@ -33,26 +33,48 @@ class LayerNormProxy(nn.Module):
 
 
 def OTAM_dist(dists, lbda=0.5):
+    if lbda <= 0:
+        raise ValueError(f"OTAM temperature must be positive, got {lbda}")
+
     dists = F.pad(dists, (1, 1), 'constant', 0)
-    cum_dists = torch.zeros(dists.shape, device=dists.device)
+    zero = dists.new_zeros(dists.shape[:2])
 
-    # top row
+    # Build the dynamic-programming table without in-place writes so autograd
+    # can retain each predecessor safely across the recurrence.
+    first_row = [zero]
     for m in range(1, dists.shape[3]):
-        cum_dists[:, :, 0, m] = dists[:, :, 0, m] + cum_dists[:, :, 0, m - 1]
+        first_row.append(dists[:, :, 0, m] + first_row[-1])
+    previous_row = first_row
 
-    # remaining rows
     for l in range(1, dists.shape[2]):
-        # first non-zero column
-        cum_dists[:, :, l, 1] = dists[:, :, l, 1] - lbda * torch.log(torch.exp(- cum_dists[:, :, l - 1, 0] / lbda) + torch.exp(- cum_dists[:, :, l - 1, 1] / lbda) + torch.exp(- cum_dists[:, :, l, 0] / lbda))
+        row = [zero]
+        boundary_predecessors = torch.stack(
+            [previous_row[0], previous_row[1], row[0]], dim=0
+        )
+        row.append(
+            dists[:, :, l, 1]
+            - lbda * torch.logsumexp(-boundary_predecessors / lbda, dim=0)
+        )
 
-        # middle columns
         for m in range(2, dists.shape[3] - 1):
-            cum_dists[:, :, l, m] = dists[:, :, l, m] - lbda * torch.log(torch.exp(- cum_dists[:, :, l - 1, m - 1] / lbda) + torch.exp(- cum_dists[:, :, l, m - 1] / lbda))
+            predecessors = torch.stack(
+                [previous_row[m - 1], row[m - 1]], dim=0
+            )
+            row.append(
+                dists[:, :, l, m]
+                - lbda * torch.logsumexp(-predecessors / lbda, dim=0)
+            )
 
-        # last column
-        cum_dists[:, :, l, -1] = dists[:, :, l, -1] - lbda * torch.log(torch.exp(- cum_dists[:, :, l - 1, -2] / lbda) + torch.exp(- cum_dists[:, :, l - 1, -1] / lbda) + torch.exp(- cum_dists[:, :, l, -2] / lbda))
+        boundary_predecessors = torch.stack(
+            [previous_row[-2], previous_row[-1], row[-1]], dim=0
+        )
+        row.append(
+            dists[:, :, l, -1]
+            - lbda * torch.logsumexp(-boundary_predecessors / lbda, dim=0)
+        )
+        previous_row = row
 
-    return cum_dists[:, :, -1, -1]
+    return previous_row[-1]
 
 
 class ResNet_DeformAttention(nn.Module):
@@ -1104,6 +1126,15 @@ class ViT_CLIP(nn.Module):
             hasattr(cfg, "SUPPORT_AGGREGATION")
             and getattr(cfg.SUPPORT_AGGREGATION, "ENABLE", False)
         )
+        self.temporal_alignment_enable = (
+            hasattr(cfg, "TEMPORAL_ALIGNMENT")
+            and getattr(cfg.TEMPORAL_ALIGNMENT, "ENABLE", False)
+        )
+        if self.temporal_alignment_enable:
+            self.temporal_alignment_lambda = max(
+                float(getattr(cfg.TEMPORAL_ALIGNMENT, "OTAM_LAMBDA", 0.5)),
+                1e-4,
+            )
         self.temporal_embedding = nn.Parameter(torch.zeros(1, self.num_frames, self.width))
         self.transformer = Transformer(cfg)
         self.ln_post = LayerNorm(self.width)
@@ -1366,6 +1397,34 @@ class ViT_CLIP(nn.Module):
         ]
         return torch.stack(class_distances, dim=1)
 
+    def _temporal_alignment_class_dist(
+        self, support_features, query_features, support_labels
+    ):
+        """Match class prototypes with bidirectional soft monotonic alignment.
+
+        The original Bi-MHM distance is invariant to temporal order because it
+        independently takes the minimum over all frame pairs. This path keeps
+        the class prototype construction but replaces that order-free reduction
+        with the differentiable OTAM recurrence in both directions.
+        """
+        unique_labels = torch.unique(support_labels)
+        support_features = torch.stack([
+            support_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ])
+        query_norm = F.normalize(query_features, dim=-1)
+        support_norm = F.normalize(support_features, dim=-1)
+        pair_distance = 1.0 - torch.einsum(
+            "qtd,csd->qcts", query_norm, support_norm
+        )
+        forward_distance = OTAM_dist(
+            pair_distance, lbda=self.temporal_alignment_lambda
+        )
+        reverse_distance = OTAM_dist(
+            pair_distance.transpose(-1, -2), lbda=self.temporal_alignment_lambda
+        )
+        return forward_distance + reverse_distance
+
     def get_feat(self, x, return_patch_tokens=False):
         x = self.conv1(x)  # b*t c h w
         x = rearrange(x, 'b c h w -> b (h w) c')
@@ -1433,7 +1492,11 @@ class ViT_CLIP(nn.Module):
         if hasattr(self.args.TRAIN, "USE_CLASSIFICATION_VALUE"):
             class_logits = self.classification_layer(torch.cat([torch.mean(support_features, dim=1), torch.mean(query_features, dim=1)], 0))
 
-        if self.support_aggregation_enable:
+        if self.temporal_alignment_enable:
+            class_dist = self._temporal_alignment_class_dist(
+                support_features, query_features, support_labels
+            )
+        elif self.support_aggregation_enable:
             class_dist = self._bimhm_class_dist_per_support(
                 support_features, query_features, support_labels
             )

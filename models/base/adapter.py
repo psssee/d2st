@@ -1408,14 +1408,10 @@ class ViT_CLIP(nn.Module):
         with the differentiable OTAM recurrence in both directions.
         """
         unique_labels = torch.unique(support_labels)
-        support_features = torch.stack([
-            support_features[support_labels == label].mean(dim=0)
-            for label in unique_labels
-        ])
         query_norm = F.normalize(query_features, dim=-1)
-        support_norm = F.normalize(support_features, dim=-1)
         pair_distance = 1.0 - torch.einsum(
-            "qtd,csd->qcts", query_norm, support_norm
+            "qtd,sud->qstu", query_norm,
+            F.normalize(support_features, dim=-1)
         )
         forward_distance = OTAM_dist(
             pair_distance, lbda=self.temporal_alignment_lambda
@@ -1423,7 +1419,11 @@ class ViT_CLIP(nn.Module):
         reverse_distance = OTAM_dist(
             pair_distance.transpose(-1, -2), lbda=self.temporal_alignment_lambda
         )
-        return forward_distance + reverse_distance
+        support_distances = forward_distance + reverse_distance
+        return torch.stack([
+            support_distances[:, support_labels == label].mean(dim=1)
+            for label in unique_labels
+        ], dim=1)
 
     def get_feat(self, x, return_patch_tokens=False):
         x = self.conv1(x)  # b*t c h w

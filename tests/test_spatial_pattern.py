@@ -145,6 +145,20 @@ class SpatialPatternTests(unittest.TestCase):
         actual = model._bimhm_class_dist_per_support(support, query, labels)
         torch.testing.assert_close(actual, expected)
 
+    def test_soft_bimhm_converges_to_hard_min_and_spreads_gradient(self):
+        model = ViT.__new__(ViT)
+        nn.Module.__init__(model)
+        model.bimhm_softmin_temperature = 1e-5
+        distances = torch.tensor([[0.2, 0.21, 0.8]], requires_grad=True)
+        soft = model._bimhm_reduce(distances, dim=1)
+        hard = distances.min(dim=1).values
+        torch.testing.assert_close(soft, hard, atol=1e-4, rtol=0)
+
+        model.bimhm_softmin_temperature = 0.1
+        distances = torch.tensor([[0.2, 0.21, 0.8]], requires_grad=True)
+        model._bimhm_reduce(distances, dim=1).sum().backward()
+        self.assertGreater(distances.grad[0, 1].item(), 0.0)
+
     def test_per_support_bimhm_averages_video_distances_and_backpropagates(self):
         model = ViT.__new__(ViT)
         nn.Module.__init__(model)

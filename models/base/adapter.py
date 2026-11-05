@@ -1104,6 +1104,13 @@ class ViT_CLIP(nn.Module):
             hasattr(cfg, "SUPPORT_AGGREGATION")
             and getattr(cfg.SUPPORT_AGGREGATION, "ENABLE", False)
         )
+        self.bimhm_softmin_temperature = float(
+            getattr(
+                getattr(cfg, "BIMHM_MATCHING", None),
+                "SOFTMIN_TEMPERATURE",
+                0.0,
+            )
+        )
         self.temporal_embedding = nn.Parameter(torch.zeros(1, self.num_frames, self.width))
         self.transformer = Transformer(cfg)
         self.ln_post = LayerNorm(self.width)
@@ -1348,7 +1355,17 @@ class ViT_CLIP(nn.Module):
             F.normalize(query_features, dim=2).permute(0, 2, 1),
         ).reshape(query_num, support_num, self.num_frames, self.num_frames)
         dist = 1 - frame_sim
-        return dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
+        return (
+            self._bimhm_reduce(dist, dim=3).sum(2)
+            + self._bimhm_reduce(dist, dim=2).sum(2)
+        )
+
+    def _bimhm_reduce(self, distances, dim):
+        temperature = getattr(self, "bimhm_softmin_temperature", 0.0)
+        if temperature <= 0.0:
+            return distances.min(dim=dim).values
+        weights = F.softmax(-distances / temperature, dim=dim)
+        return (weights * distances).sum(dim=dim)
 
     def _bimhm_class_dist_per_support(
         self, support_features, query_features, support_labels
@@ -1358,7 +1375,10 @@ class ViT_CLIP(nn.Module):
         query_norm = F.normalize(query_features, dim=-1)
         frame_sim = torch.einsum("qtd,sud->qstu", query_norm, support_norm)
         dist = 1 - frame_sim
-        support_dist = dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
+        support_dist = (
+            self._bimhm_reduce(dist, dim=3).sum(2)
+            + self._bimhm_reduce(dist, dim=2).sum(2)
+        )
 
         class_distances = [
             support_dist[:, support_labels == label].mean(dim=1)

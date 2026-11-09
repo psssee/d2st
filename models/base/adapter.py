@@ -1180,8 +1180,8 @@ class D2STTrajectoryGeometryMatcher(nn.Module):
             "qtd,csd->qcts", query_norm, support_norm
         )
         class_distance = (
-            frame_distance.min(dim=3).values.sum(dim=1)
-            + frame_distance.min(dim=1).values.sum(dim=2)
+            frame_distance.min(dim=3).values.sum(dim=2)
+            + frame_distance.min(dim=2).values.sum(dim=2)
         )
         return -class_distance * self.distance_scale
 

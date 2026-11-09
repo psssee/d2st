@@ -40,19 +40,23 @@ def rearrange_frames(tensor, pattern):
 
 adapter_namespace = load_definitions(
     ROOT / 'models/base/adapter.py',
-    {'D2STSpatialPatternMatcher', 'D2STRelationalTemporalMatcher', 'ViT_CLIP', 'D2STTaskAwareMatcher',
+    {'D2STSpatialPatternMatcher', 'D2STRelationalTemporalMatcher', 'D2STTrajectoryGeometryMatcher', 'ViT_CLIP', 'D2STTaskAwareMatcher',
      'D2STMultiVelocityMatcher', 'OTAM_dist'},
     {'torch': torch, 'nn': nn, 'F': F, 'math': math, 'rearrange': rearrange_frames},
 )
 Matcher = adapter_namespace['D2STSpatialPatternMatcher']
 RelationMatcher = adapter_namespace['D2STRelationalTemporalMatcher']
+TrajectoryGeometryMatcher = adapter_namespace['D2STTrajectoryGeometryMatcher']
 ViT = adapter_namespace['ViT_CLIP']
 training_namespace = load_definitions(
     ROOT / 'runs/train_net_few_shot.py',
-    {'_validate_spatial_pattern_training'},
+    {'_validate_spatial_pattern_training', '_validate_trajectory_geometry_training'},
     {'torch': torch, 'logger': logging.getLogger(__name__)},
 )
 validate_training = training_namespace['_validate_spatial_pattern_training']
+validate_trajectory_training = training_namespace[
+    '_validate_trajectory_geometry_training'
+]
 
 
 def apply_production_freeze_policy(model):
@@ -79,6 +83,7 @@ def make_feature_model(detach=True, enabled=True):
     model.proto_calib_enable = False
     model.support_aggregation_enable = False
     model.spatial_pattern_enable = enabled
+    model.trajectory_geometry_enable = False
     model.spatial_pattern_detach_input = detach
     model.spatial_pattern_matcher = Matcher(3, grid_size=2)
     model.spatial_pattern_alpha = nn.Parameter(torch.tensor(-4.0))
@@ -129,6 +134,54 @@ class SpatialPatternTests(unittest.TestCase):
         ordered = matcher(support, support, labels)
         reversed_video = matcher(support, support.flip(1), labels)
         self.assertGreater(ordered.item(), reversed_video.item())
+
+    def test_trajectory_geometry_shapes_values_and_gradient(self):
+        matcher = TrajectoryGeometryMatcher(
+            dim=6, num_frames=4, local_neighbors=4, distance_scale=8.0,
+            point_grid_size=4,
+        )
+        support = torch.randn(4, 4, 16, 6, requires_grad=True)
+        query = torch.randn(2, 4, 16, 6, requires_grad=True)
+        labels = torch.tensor([7, 2, 7, 2])
+        logits = matcher(support, query, labels)
+        self.assertEqual(tuple(logits.shape), (2, 2))
+        self.assertTrue(torch.isfinite(logits).all())
+        logits.sum().backward()
+        self.assertTrue(torch.isfinite(support.grad).all())
+        self.assertTrue(torch.isfinite(query.grad).all())
+        self.assertTrue(torch.isfinite(matcher.last_track_confidence))
+
+    def test_trajectory_geometry_rejects_non_square_patch_grid(self):
+        matcher = TrajectoryGeometryMatcher(dim=6, num_frames=3, point_grid_size=3)
+        with self.assertRaisesRegex(ValueError, 'square patch grid'):
+            matcher(
+                torch.randn(2, 3, 15, 6),
+                torch.randn(1, 3, 15, 6),
+                torch.tensor([0, 1]),
+            )
+
+    def test_trajectory_geometry_fuses_and_gate_trains(self):
+        model = make_feature_model(enabled=False)
+        model.trajectory_geometry_enable = True
+        model.trajectory_geometry_matcher = TrajectoryGeometryMatcher(
+            dim=6, num_frames=3, local_neighbors=4, point_grid_size=4
+        )
+        model.trajectory_geometry_detach_input = True
+        model.trajectory_geometry_alpha = nn.Parameter(torch.tensor(-4.0))
+        model.register_buffer(
+            'trajectory_geometry_logit_delta', torch.tensor(0.0), persistent=False
+        )
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        apply_production_freeze_policy(model)
+        validate_trajectory_training(model, optimizer)
+        inputs = episode(shots=1)
+        model.eval()
+        outputs = model(inputs)
+        self.assertEqual(tuple(outputs['logits'].shape), (3, 2))
+        self.assertIn('trajectory_geometry_logits', outputs)
+        F.cross_entropy(outputs['logits'], torch.tensor([0, 1, 0])).backward()
+        validate_trajectory_training(model, optimizer, check_gradient=True)
+        self.assertIsNotNone(model.trajectory_geometry_matcher.motion_projection[-1].weight.grad)
 
     def test_per_support_bimhm_matches_legacy_for_one_shot(self):
         model = ViT.__new__(ViT)

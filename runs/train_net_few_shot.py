@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) Alibaba Group Holding Limited. 
+# Copyright (C) Alibaba Group Holding Limited.
 # -----------------------------------------------
 # Modified by Qizhong Tan
 # -----------------------------------------------
@@ -21,6 +21,7 @@ from utils.meters import TrainMeter, ValMeter
 from utils.spatial_pattern_diagnostics import (
     RelationalTemporalMeter,
     SpatialPatternMeter,
+    TrajectoryGeometryMeter,
 )
 from models.base.builder import build_model
 from datasets.base.builder import build_loader, shuffle_dataset
@@ -49,6 +50,31 @@ def _validate_spatial_pattern_training(model, optimizer, check_gradient=False):
         else:
             logger.info(
                 'Spatial pattern gate: %s trainable=True optimized=True weight=%.6f',
+                name, torch.sigmoid(param.detach()).item(),
+            )
+
+
+def _validate_trajectory_geometry_training(model, optimizer, check_gradient=False):
+    optimized_ids = {
+        id(param) for group in optimizer.param_groups for param in group['params']
+    }
+    for name, param in model.named_parameters():
+        if name.rsplit('.', 1)[-1] != 'trajectory_geometry_alpha':
+            continue
+        if not param.requires_grad or id(param) not in optimized_ids:
+            raise RuntimeError(
+                f'{name} must be trainable and included in the optimizer.'
+            )
+        if check_gradient:
+            if param.grad is None or not torch.isfinite(param.grad).all():
+                raise RuntimeError(f'{name} has no finite gradient after backward.')
+            logger.info(
+                'Trajectory geometry gate first backward: %s grad=%.8g',
+                name, param.grad.item(),
+            )
+        else:
+            logger.info(
+                'Trajectory geometry gate: %s trainable=True optimized=True weight=%.6f',
                 name, torch.sigmoid(param.detach()).item(),
             )
 
@@ -121,6 +147,16 @@ def _log_fusion_state(model):
         if diagnostics:
             logger.info(
                 "Relational temporal matcher: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
+    if hasattr(fusion_module, "get_trajectory_geometry_diagnostics"):
+        diagnostics = fusion_module.get_trajectory_geometry_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Trajectory geometry matcher: %s",
                 ", ".join(
                     "{}={}".format(name, value)
                     for name, value in diagnostics.items()
@@ -254,6 +290,7 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
         (loss / gradient_scale).backward(retain_graph=False)
         if cur_iter == 0:
             _validate_spatial_pattern_training(model, optimizer, check_gradient=True)
+            _validate_trajectory_geometry_training(model, optimizer, check_gradient=True)
 
         # optimize
         if ((cur_iter + 1) % cfg.TRAIN.BATCH_SIZE_PER_TASK == 0):
@@ -289,6 +326,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     val_meter.iter_tic()
     spatial_meter = SpatialPatternMeter()
     relation_meter = RelationalTemporalMeter()
+    trajectory_geometry_meter = TrajectoryGeometryMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -302,6 +340,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         model_dict = model(task_dict)
         spatial_meter.update(model_dict, task_dict['target_labels'])
         relation_meter.update(model_dict, task_dict['target_labels'])
+        trajectory_geometry_meter.update(model_dict, task_dict['target_labels'])
 
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
@@ -332,6 +371,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     val_meter.log_epoch_stats(cur_epoch)
     spatial_meter.log(logger)
     relation_meter.log(logger)
+    trajectory_geometry_meter.log(logger)
     val_meter.reset()
     return val_acc
 
@@ -410,11 +450,14 @@ def train_few_shot(cfg):
         'spatial_pattern_alpha',
         'relation_matcher',
         'relation_match_alpha',
+        'trajectory_geometry_matcher',
+        'trajectory_geometry_alpha',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):
             param.requires_grad = False
     _validate_spatial_pattern_training(model, optimizer)
+    _validate_trajectory_geometry_training(model, optimizer)
 
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:
         for name, param in model.named_parameters():

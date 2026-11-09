@@ -1033,6 +1033,162 @@ class D2STSpatialPatternMatcher(nn.Module):
         return {"grid_size": self.grid_size, "tokens_per_frame": self.grid_size ** 2}
 
 
+class D2STTrajectoryGeometryMatcher(nn.Module):
+    """Approximate patch trajectories and match their local motion geometry.
+
+    This is a D2ST-native research prototype, not a GeoTRAM reproduction: patch
+    correspondences are inferred from CLIP features, without an external point
+    tracker, monocular depth, or DINOv2-guided seed selection.
+    """
+
+    def __init__(self, dim, num_frames, hidden_ratio=0.25, dropout=0.1,
+                 temperature=0.07, distance_scale=None, local_neighbors=8,
+                 point_grid_size=7):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.temperature = max(float(temperature), 1e-4)
+        self.distance_scale = float(
+            2 * self.num_frames if distance_scale is None else distance_scale
+        )
+        self.local_neighbors = max(int(local_neighbors), 1)
+        self.point_grid_size = max(int(point_grid_size), 1)
+        hidden_dim = max(int(dim * float(hidden_ratio)), 32)
+        self.motion_projection = nn.Sequential(
+            nn.LayerNorm(dim + 4),
+            nn.Linear(dim + 4, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(float(dropout)),
+            nn.Linear(hidden_dim, dim),
+        )
+        nn.init.xavier_uniform_(self.motion_projection[-1].weight)
+        nn.init.zeros_(self.motion_projection[-1].bias)
+        self.register_buffer("last_track_confidence", torch.tensor(0.0), persistent=False)
+
+    def _neighbor_indices(self, patch_count, device, dtype):
+        side = int(math.sqrt(patch_count))
+        if side * side != patch_count:
+            raise ValueError(
+                f"Trajectory geometry requires a square patch grid, got {patch_count}"
+            )
+        coords_float = torch.stack(torch.meshgrid(
+            torch.linspace(-1.0, 1.0, side, device=device, dtype=torch.float32),
+            torch.linspace(-1.0, 1.0, side, device=device, dtype=torch.float32),
+            indexing="ij",
+        ), dim=-1).reshape(patch_count, 2)
+        distances = (
+            coords_float[:, None, :] - coords_float[None, :, :]
+        ).square().sum(dim=-1)
+        distances.fill_diagonal_(float("inf"))
+        if patch_count < 2:
+            raise ValueError("Trajectory geometry requires at least two points")
+        k = min(self.local_neighbors, patch_count - 1)
+        return coords_float.to(dtype=dtype), distances.topk(k, largest=False, dim=-1).indices
+
+    def _trajectory_descriptors(self, patch_features):
+        if patch_features.ndim != 4:
+            raise ValueError(
+                "Trajectory geometry expects features as (B,T,P,D), got "
+                f"{tuple(patch_features.shape)}"
+            )
+        batch, frames, patch_count, dim = patch_features.shape
+        if frames != self.num_frames:
+            raise ValueError(
+                f"Trajectory geometry expects {self.num_frames} frames, got {frames}"
+            )
+        patch_side = int(math.sqrt(patch_count))
+        if patch_side * patch_side != patch_count:
+            raise ValueError(
+                f"Trajectory geometry requires a square patch grid, got {patch_count}"
+            )
+        if patch_side % self.point_grid_size != 0:
+            raise ValueError(
+                f"Patch grid {patch_side} is not divisible by trajectory point grid "
+                f"{self.point_grid_size}"
+            )
+        cell_size = patch_side // self.point_grid_size
+        patch_features = patch_features.reshape(
+            batch,
+            frames,
+            self.point_grid_size,
+            cell_size,
+            self.point_grid_size,
+            cell_size,
+            dim,
+        ).mean(dim=(3, 5)).reshape(
+            batch, frames, self.point_grid_size ** 2, dim
+        )
+        coords, neighbors = self._neighbor_indices(
+            self.point_grid_size ** 2,
+            patch_features.device,
+            patch_features.dtype,
+        )
+        normalized = F.normalize(patch_features, dim=-1, eps=1e-6)
+        tracked_features = patch_features[:, 0]
+        tracked_coords = coords.unsqueeze(0).expand(batch, -1, -1)
+        frame_descriptors = []
+        confidence_values = []
+
+        for frame_index in range(1, frames):
+            current_features = patch_features[:, frame_index]
+            affinity = torch.bmm(
+                F.normalize(tracked_features, dim=-1, eps=1e-6),
+                normalized[:, frame_index].transpose(1, 2),
+            )
+            correspondence = F.softmax(affinity / self.temperature, dim=-1)
+            next_coords = torch.matmul(correspondence, coords)
+            next_features = torch.matmul(correspondence, current_features)
+            displacement = next_coords - tracked_coords
+            neighbor_displacement = displacement[:, neighbors]
+            relative_motion = (
+                displacement.unsqueeze(2) - neighbor_displacement
+            ).mean(dim=2)
+            feature_change = next_features - tracked_features
+            states = torch.cat(
+                [feature_change, displacement, relative_motion], dim=-1
+            )
+            patch_motion = self.motion_projection(states)
+            quality = affinity.max(dim=-1).values.clamp_min(0.05)
+            descriptor = (
+                patch_motion * quality.unsqueeze(-1)
+            ).sum(dim=1) / quality.sum(dim=1, keepdim=True).clamp_min(1e-6)
+            frame_descriptors.append(descriptor)
+            confidence_values.append(quality.mean())
+            tracked_features = next_features
+            tracked_coords = next_coords
+
+        self.last_track_confidence.copy_(torch.stack(confidence_values).mean().detach())
+        return torch.stack(frame_descriptors, dim=1)
+
+    @staticmethod
+    def _class_prototypes(video_descriptors, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        return torch.stack([
+            video_descriptors[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ])
+
+    def forward(self, support_patch_features, query_patch_features, support_labels):
+        if support_patch_features.shape[-1] != query_patch_features.shape[-1]:
+            raise ValueError("Support/query patch feature dimensions must match")
+        support_labels = support_labels.to(device=support_patch_features.device)
+        support_descriptors = self._trajectory_descriptors(support_patch_features)
+        query_descriptors = self._trajectory_descriptors(query_patch_features)
+        support_prototypes = self._class_prototypes(support_descriptors, support_labels)
+        query_norm = F.normalize(query_descriptors, dim=-1, eps=1e-6)
+        support_norm = F.normalize(support_prototypes, dim=-1, eps=1e-6)
+        frame_distance = 1.0 - torch.einsum(
+            "qtd,csd->qcts", query_norm, support_norm
+        )
+        class_distance = (
+            frame_distance.min(dim=3).values.sum(dim=1)
+            + frame_distance.min(dim=1).values.sum(dim=2)
+        )
+        return -class_distance * self.distance_scale
+
+    def get_diagnostics(self):
+        return {"track_confidence": self.last_track_confidence.detach().item()}
+
+
 class D2STRelationalTemporalMatcher(nn.Module):
     """Match within-video temporal relations instead of isolated frames."""
 
@@ -1227,6 +1383,42 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "spatial_pattern_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.trajectory_geometry_enable = (
+            hasattr(cfg, "TRAJECTORY_GEOMETRY")
+            and getattr(cfg.TRAJECTORY_GEOMETRY, "ENABLE", False)
+        )
+        if self.trajectory_geometry_enable:
+            self.trajectory_geometry_matcher = D2STTrajectoryGeometryMatcher(
+                dim=self.width,
+                num_frames=self.num_frames,
+                hidden_ratio=float(
+                    getattr(cfg.TRAJECTORY_GEOMETRY, "HIDDEN_RATIO", 0.25)
+                ),
+                dropout=float(getattr(cfg.TRAJECTORY_GEOMETRY, "DROPOUT", 0.1)),
+                temperature=float(
+                    getattr(cfg.TRAJECTORY_GEOMETRY, "TEMPERATURE", 0.07)
+                ),
+                distance_scale=float(
+                    getattr(cfg.TRAJECTORY_GEOMETRY, "DISTANCE_SCALE", 2 * self.num_frames)
+                ),
+                local_neighbors=int(
+                    getattr(cfg.TRAJECTORY_GEOMETRY, "LOCAL_NEIGHBORS", 8)
+                ),
+                point_grid_size=int(
+                    getattr(cfg.TRAJECTORY_GEOMETRY, "POINT_GRID_SIZE", 7)
+                ),
+            )
+            self.trajectory_geometry_alpha = nn.Parameter(
+                torch.tensor(
+                    float(getattr(cfg.TRAJECTORY_GEOMETRY, "ALPHA_INIT", -4.0))
+                )
+            )
+            self.trajectory_geometry_detach_input = bool(
+                getattr(cfg.TRAJECTORY_GEOMETRY, "DETACH_INPUT", True)
+            )
+            self.register_buffer(
+                "trajectory_geometry_logit_delta", torch.tensor(0.0), persistent=False
+            )
         self.relation_match_enable = (
             hasattr(cfg, "RELATION_MATCH")
             and getattr(cfg.RELATION_MATCH, "ENABLE", False)
@@ -1265,6 +1457,10 @@ class ViT_CLIP(nn.Module):
             weights["spatial_pattern"] = torch.sigmoid(
                 self.spatial_pattern_alpha
             ).detach().item()
+        if self.trajectory_geometry_enable:
+            weights["trajectory_geometry"] = torch.sigmoid(
+                self.trajectory_geometry_alpha
+            ).detach().item()
         if self.relation_match_enable:
             weights["relation_match"] = torch.sigmoid(
                 self.relation_match_alpha
@@ -1302,6 +1498,17 @@ class ViT_CLIP(nn.Module):
         )
         diagnostics["gate_trainable"] = self.spatial_pattern_alpha.requires_grad
         diagnostics["detach_input"] = self.spatial_pattern_detach_input
+        return diagnostics
+
+    def get_trajectory_geometry_diagnostics(self):
+        if not self.trajectory_geometry_enable:
+            return {}
+        diagnostics = self.trajectory_geometry_matcher.get_diagnostics()
+        diagnostics["logit_delta"] = (
+            self.trajectory_geometry_logit_delta.detach().item()
+        )
+        diagnostics["gate_trainable"] = self.trajectory_geometry_alpha.requires_grad
+        diagnostics["detach_input"] = self.trajectory_geometry_detach_input
         return diagnostics
 
     def init_weights(self):
@@ -1411,7 +1618,9 @@ class ViT_CLIP(nn.Module):
 
     def forward(self, inputs):
         support_images, query_images = inputs['support_set'], inputs['target_set']
-        return_patch_tokens = self.spatial_pattern_enable
+        return_patch_tokens = (
+            self.spatial_pattern_enable or self.trajectory_geometry_enable
+        )
         if return_patch_tokens:
             support_features, support_patch_features = self.get_feat(
                 support_images, return_patch_tokens=True
@@ -1550,6 +1759,24 @@ class ViT_CLIP(nn.Module):
                 )
             )
 
+        trajectory_geometry_logits = None
+        if self.trajectory_geometry_enable:
+            trajectory_support_input = support_patch_features
+            trajectory_query_input = query_patch_features
+            if self.trajectory_geometry_detach_input:
+                trajectory_support_input = trajectory_support_input.detach()
+                trajectory_query_input = trajectory_query_input.detach()
+            trajectory_geometry_logits = self.trajectory_geometry_matcher(
+                trajectory_support_input,
+                trajectory_query_input,
+                support_labels,
+            )
+            self.trajectory_geometry_logit_delta.copy_(
+                (trajectory_geometry_logits - base_logits).detach().abs().mean().to(
+                    self.trajectory_geometry_logit_delta
+                )
+            )
+
         relation_match_logits = None
         if self.relation_match_enable:
             relation_match_logits = self.relation_matcher(
@@ -1595,6 +1822,14 @@ class ViT_CLIP(nn.Module):
             logits = logits + spatial_pattern_weight * (
                 spatial_pattern_logits - base_logits.detach()
             )
+        logits_without_trajectory_geometry = logits
+        if trajectory_geometry_logits is not None:
+            trajectory_geometry_weight = torch.sigmoid(
+                self.trajectory_geometry_alpha
+            )
+            logits = logits + trajectory_geometry_weight * (
+                trajectory_geometry_logits - base_logits.detach()
+            )
 
         return_dict = {'logits': logits, 'class_logits': class_logits}
         if spatial_pattern_logits is not None and not self.training:
@@ -1605,4 +1840,9 @@ class ViT_CLIP(nn.Module):
         if relation_match_logits is not None and not self.training:
             return_dict['logits_without_relation_match'] = logits_without_relation_match.detach()
             return_dict['relation_match_logits'] = relation_match_logits.detach()
+        if trajectory_geometry_logits is not None and not self.training:
+            return_dict['logits_without_trajectory_geometry'] = (
+                logits_without_trajectory_geometry.detach()
+            )
+            return_dict['trajectory_geometry_logits'] = trajectory_geometry_logits.detach()
         return return_dict

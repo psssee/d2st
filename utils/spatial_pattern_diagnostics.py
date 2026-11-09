@@ -106,3 +106,45 @@ class RelationalTemporalMeter:
         summary = self.summary()
         if summary:
             logger.info('Relational temporal paired evaluation: %s', summary)
+
+
+class TrajectoryGeometryMeter:
+    """Paired evaluation of the trajectory-geometry branch."""
+
+    def __init__(self):
+        self.totals = None
+
+    @torch.no_grad()
+    def update(self, outputs, labels):
+        if 'logits_without_trajectory_geometry' not in outputs:
+            return
+        labels = labels.reshape(-1).long()
+        full = outputs['logits'].argmax(dim=-1).eq(labels)
+        without = outputs['logits_without_trajectory_geometry'].argmax(dim=-1).eq(labels)
+        trajectory = outputs['trajectory_geometry_logits'].argmax(dim=-1).eq(labels)
+        values = torch.stack([
+            full.sum(), without.sum(), trajectory.sum(),
+            labels.new_tensor(labels.numel()), full.ne(without).sum(),
+            (full & ~without).sum(), (~full & without).sum(),
+        ]).to(dtype=torch.float64)
+        self.totals = values if self.totals is None else self.totals + values
+
+    def summary(self):
+        if self.totals is None:
+            return {}
+        full, without, trajectory, count, changed, helped, hurt = self.totals.cpu().tolist()
+        return {
+            'queries': int(count),
+            'full_acc': 100.0 * full / count,
+            'without_trajectory_geometry_acc': 100.0 * without / count,
+            'trajectory_geometry_only_acc': 100.0 * trajectory / count,
+            'paired_delta_pp': 100.0 * (full - without) / count,
+            'changed_predictions': int(changed),
+            'helped_predictions': int(helped),
+            'hurt_predictions': int(hurt),
+        }
+
+    def log(self, logger):
+        summary = self.summary()
+        if summary:
+            logger.info('Trajectory geometry paired evaluation: %s', summary)

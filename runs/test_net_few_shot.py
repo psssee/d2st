@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) Alibaba Group Holding Limited. 
+# Copyright (C) Alibaba Group Holding Limited.
 # -----------------------------------------------
 # Modified by Qizhong Tan
 # -----------------------------------------------
@@ -18,6 +18,7 @@ from utils.meters import ValMeter
 from utils.spatial_pattern_diagnostics import (
     RelationalTemporalMeter,
     SpatialPatternMeter,
+    TrajectoryGeometryMeter,
 )
 from models.base.builder import build_model
 from datasets.base.builder import build_loader
@@ -44,6 +45,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     num_per_class = {}
     spatial_meter = SpatialPatternMeter()
     relation_meter = RelationalTemporalMeter()
+    trajectory_geometry_meter = TrajectoryGeometryMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -56,6 +58,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         model_dict = model(task_dict)
         spatial_meter.update(model_dict, task_dict['target_labels'])
         relation_meter.update(model_dict, task_dict['target_labels'])
+        trajectory_geometry_meter.update(model_dict, task_dict['target_labels'])
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
             model_dict["logits"], task_dict["target_labels"].long()
@@ -96,6 +99,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     val_meter.log_epoch_stats(cur_epoch)
     spatial_meter.log(logger)
     relation_meter.log(logger)
+    trajectory_geometry_meter.log(logger)
     for perclass in top1_per_class:
         # top1_per_class[perclass] = num_per_class[perclass]
         logger.info("class: {}, acc: {}".format(perclass, top1_per_class[perclass] / num_per_class[perclass]))

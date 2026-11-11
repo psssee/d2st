@@ -1189,6 +1189,119 @@ class D2STTrajectoryGeometryMatcher(nn.Module):
         return {"track_confidence": self.last_track_confidence.detach().item()}
 
 
+class D2STQueryAdaptiveFusion(nn.Module):
+    """Fuse matcher residuals with a query-specific uncertainty gate."""
+
+    def __init__(self, num_branches=2, hidden_ratio=0.5, dropout=0.1,
+                 gate_init=0.0, temperature=1.0):
+        super().__init__()
+        self.num_branches = int(num_branches)
+        self.temperature = max(float(temperature), 1e-4)
+        feature_dim = 2 + 3 * self.num_branches
+        hidden_dim = max(int(feature_dim * float(hidden_ratio)), 16)
+        self.gate_network = nn.Sequential(
+            nn.LayerNorm(feature_dim),
+            nn.Linear(feature_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(float(dropout)),
+            nn.Linear(hidden_dim, self.num_branches),
+        )
+        nn.init.zeros_(self.gate_network[-1].weight)
+        nn.init.constant_(self.gate_network[-1].bias, float(gate_init))
+        self.register_buffer("last_gate_mean", torch.zeros(self.num_branches), persistent=False)
+        self.register_buffer("last_gate_std", torch.zeros(self.num_branches), persistent=False)
+        self.register_buffer("last_base_entropy", torch.tensor(0.0), persistent=False)
+        self.register_buffer("last_disagreement", torch.zeros(self.num_branches), persistent=False)
+
+    @staticmethod
+    def _margin(logits):
+        top2 = logits.topk(k=min(2, logits.shape[-1]), dim=-1).values
+        if top2.shape[-1] == 1:
+            return top2[..., 0]
+        return top2[..., 0] - top2[..., 1]
+
+    def _entropy(self, logits):
+        probabilities = F.softmax(logits / self.temperature, dim=-1)
+        entropy = -(probabilities * probabilities.clamp_min(1e-8).log()).sum(dim=-1)
+        return entropy / max(math.log(max(logits.shape[-1], 2)), 1e-6)
+
+    @staticmethod
+    def _calibrate_to_reference(branch_logits, reference_logits):
+        branch_mean = branch_logits.mean(dim=-1, keepdim=True)
+        reference_mean = reference_logits.mean(dim=-1, keepdim=True)
+        branch_centered = branch_logits - branch_mean
+        reference_centered = reference_logits - reference_mean
+        branch_scale = branch_centered.square().mean(dim=-1, keepdim=True).sqrt().clamp_min(1e-4)
+        reference_scale = reference_centered.square().mean(dim=-1, keepdim=True).sqrt().clamp_min(1e-4)
+        return reference_mean + branch_centered * (reference_scale / branch_scale)
+
+    def forward(self, reference_logits, branch_logits, branch_weights=None):
+        if len(branch_logits) != self.num_branches:
+            raise ValueError(
+                f"Adaptive fusion expects {self.num_branches} branches, "
+                f"got {len(branch_logits)}"
+            )
+        if any(branch.shape != reference_logits.shape for branch in branch_logits):
+            raise ValueError("Adaptive fusion logits must have identical shapes")
+        if branch_weights is None:
+            branch_weights = [1.0] * self.num_branches
+        if len(branch_weights) != self.num_branches:
+            raise ValueError("Adaptive fusion requires one global weight per branch")
+
+        reference_probabilities = F.softmax(
+            reference_logits / self.temperature, dim=-1
+        )
+        reference_scale = (
+            reference_logits - reference_logits.mean(dim=-1, keepdim=True)
+        ).square().mean(dim=-1, keepdim=True).sqrt().clamp_min(1e-4)
+        reference_entropy = self._entropy(reference_logits)
+        reference_margin = self._margin(reference_logits)
+        features = [reference_margin, reference_entropy]
+        calibrated_branches = []
+        disagreements = []
+        for branch in branch_logits:
+            calibrated = self._calibrate_to_reference(branch, reference_logits)
+            calibrated_branches.append(calibrated)
+            branch_probabilities = F.softmax(
+                calibrated / self.temperature, dim=-1
+            )
+            disagreements.append(
+                (branch_probabilities - reference_probabilities).abs().mean(dim=-1)
+            )
+            features.extend([
+                self._margin(calibrated),
+                (calibrated - reference_logits).abs().mean(dim=-1)
+                / reference_scale.squeeze(-1),
+                -(branch_probabilities * branch_probabilities.clamp_min(1e-8).log()).sum(dim=-1),
+            ])
+        gate_features = torch.stack(features, dim=-1)
+        gates = torch.sigmoid(self.gate_network(gate_features))
+        fused_logits = reference_logits
+        static_logits = reference_logits
+        for branch, gate, weight in zip(
+            calibrated_branches, gates.unbind(dim=-1), branch_weights
+        ):
+            residual = branch - reference_logits.detach()
+            static_logits = static_logits + weight * residual
+            fused_logits = fused_logits + gate.unsqueeze(-1) * (
+                2.0 * weight * residual
+            )
+
+        self.last_gate_mean.copy_(gates.detach().mean(dim=0))
+        self.last_gate_std.copy_(gates.detach().std(dim=0, unbiased=False))
+        self.last_base_entropy.copy_(reference_entropy.detach().mean())
+        self.last_disagreement.copy_(torch.stack(disagreements).detach().mean(dim=1))
+        return fused_logits, static_logits
+
+    def get_diagnostics(self):
+        return {
+            "gate_mean": self.last_gate_mean.detach().cpu().tolist(),
+            "gate_std": self.last_gate_std.detach().cpu().tolist(),
+            "base_entropy": self.last_base_entropy.detach().item(),
+            "branch_disagreement": self.last_disagreement.detach().cpu().tolist(),
+        }
+
+
 class D2STRelationalTemporalMatcher(nn.Module):
     """Match within-video temporal relations instead of isolated frames."""
 
@@ -1419,6 +1532,25 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "trajectory_geometry_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.adaptive_fusion_enable = (
+            hasattr(cfg, "ADAPTIVE_FUSION")
+            and getattr(cfg.ADAPTIVE_FUSION, "ENABLE", False)
+        )
+        if self.adaptive_fusion_enable:
+            self.adaptive_fusion = D2STQueryAdaptiveFusion(
+                num_branches=int(getattr(cfg.ADAPTIVE_FUSION, "NUM_BRANCHES", 2)),
+                hidden_ratio=float(
+                    getattr(cfg.ADAPTIVE_FUSION, "HIDDEN_RATIO", 0.5)
+                ),
+                dropout=float(getattr(cfg.ADAPTIVE_FUSION, "DROPOUT", 0.1)),
+                gate_init=float(getattr(cfg.ADAPTIVE_FUSION, "GATE_INIT", 0.0)),
+                temperature=float(
+                    getattr(cfg.ADAPTIVE_FUSION, "TEMPERATURE", 1.0)
+                ),
+            )
+            self.register_buffer(
+                "adaptive_fusion_logit_delta", torch.tensor(0.0), persistent=False
+            )
         self.relation_match_enable = (
             hasattr(cfg, "RELATION_MATCH")
             and getattr(cfg.RELATION_MATCH, "ENABLE", False)
@@ -1509,6 +1641,13 @@ class ViT_CLIP(nn.Module):
         )
         diagnostics["gate_trainable"] = self.trajectory_geometry_alpha.requires_grad
         diagnostics["detach_input"] = self.trajectory_geometry_detach_input
+        return diagnostics
+
+    def get_adaptive_fusion_diagnostics(self):
+        if not self.adaptive_fusion_enable:
+            return {}
+        diagnostics = self.adaptive_fusion.get_diagnostics()
+        diagnostics["logit_delta"] = self.adaptive_fusion_logit_delta.detach().item()
         return diagnostics
 
     def init_weights(self):
@@ -1791,21 +1930,52 @@ class ViT_CLIP(nn.Module):
             )
 
         # Each optional branch learns an independent residual from the same
-        # D2ST decision. This preserves single-branch behavior and avoids
-        # forcing FOCUS and TASK_MATCH to compete for a softmax budget.
+        # D2ST decision unless query-wise adaptive fusion is enabled.
         logits = base_logits
         if focus_logits is not None:
             focus_weight = torch.sigmoid(self.focus_alpha)
             logits = logits + focus_weight * (focus_logits - base_logits.detach())
-        if task_logits is not None:
-            task_weight = torch.sigmoid(self.task_match_alpha)
-            logits = logits + task_weight * (task_logits - base_logits.detach())
+        logits_without_adaptive_fusion = None
+        adaptive_fusion_logits = None
+        legacy_global_fusion_logits = None
+        if self.adaptive_fusion_enable:
+            if task_logits is None or multi_velocity_logits is None:
+                raise RuntimeError(
+                    "Adaptive fusion requires TASK_MATCH and MULTI_VELOCITY branches"
+                )
+            adaptive_fusion_logits, logits_without_adaptive_fusion = self.adaptive_fusion(
+                logits,
+                [task_logits, multi_velocity_logits],
+                [
+                    torch.sigmoid(self.task_match_alpha),
+                    torch.sigmoid(self.multi_velocity_alpha),
+                ],
+            )
+            legacy_global_fusion_logits = logits
+            legacy_global_fusion_logits = legacy_global_fusion_logits + (
+                torch.sigmoid(self.task_match_alpha)
+                * (task_logits - base_logits.detach())
+            )
+            legacy_global_fusion_logits = legacy_global_fusion_logits + (
+                torch.sigmoid(self.multi_velocity_alpha)
+                * (multi_velocity_logits - base_logits.detach())
+            )
+            logits = adaptive_fusion_logits
+            self.adaptive_fusion_logit_delta.copy_(
+                (adaptive_fusion_logits - base_logits).detach().abs().mean().to(
+                    self.adaptive_fusion_logit_delta
+                )
+            )
+        else:
+            if task_logits is not None:
+                task_weight = torch.sigmoid(self.task_match_alpha)
+                logits = logits + task_weight * (task_logits - base_logits.detach())
         if proto_calib_logits is not None:
             proto_calib_weight = torch.sigmoid(self.proto_calib_alpha)
             logits = logits + proto_calib_weight * (
                 proto_calib_logits - base_logits.detach()
             )
-        if multi_velocity_logits is not None:
+        if not self.adaptive_fusion_enable and multi_velocity_logits is not None:
             multi_velocity_weight = torch.sigmoid(self.multi_velocity_alpha)
             logits = logits + multi_velocity_weight * (
                 multi_velocity_logits - base_logits.detach()
@@ -1832,6 +2002,14 @@ class ViT_CLIP(nn.Module):
             )
 
         return_dict = {'logits': logits, 'class_logits': class_logits}
+        if adaptive_fusion_logits is not None and not self.training:
+            return_dict['logits_without_adaptive_fusion'] = (
+                logits_without_adaptive_fusion.detach()
+            )
+            return_dict['adaptive_fusion_logits'] = adaptive_fusion_logits.detach()
+            return_dict['legacy_global_fusion_logits'] = (
+                legacy_global_fusion_logits.detach()
+            )
         if spatial_pattern_logits is not None and not self.training:
             # Evaluate the marginal contribution on identical episodes without
             # another backbone pass. Query labels are used only by the meter.

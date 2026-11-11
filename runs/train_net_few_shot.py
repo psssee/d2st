@@ -19,6 +19,7 @@ import utils.metrics as metrics
 import utils.misc as misc
 from utils.meters import TrainMeter, ValMeter
 from utils.spatial_pattern_diagnostics import (
+    AdaptiveFusionMeter,
     RelationalTemporalMeter,
     SpatialPatternMeter,
     TrajectoryGeometryMeter,
@@ -27,6 +28,29 @@ from models.base.builder import build_model
 from datasets.base.builder import build_loader, shuffle_dataset
 
 logger = logging.get_logger(__name__)
+
+
+def _validate_adaptive_fusion_training(model, optimizer, check_gradient=False):
+    if not getattr(model, "adaptive_fusion_enable", False):
+        return
+    optimized_ids = {
+        id(param) for group in optimizer.param_groups for param in group['params']
+    }
+    found = False
+    for name, param in model.named_parameters():
+        if "adaptive_fusion." not in name:
+            continue
+        found = True
+        if not param.requires_grad or id(param) not in optimized_ids:
+            raise RuntimeError(
+                f'{name} must be trainable and included in the optimizer.'
+            )
+        if check_gradient and (param.grad is None or not torch.isfinite(param.grad).all()):
+            raise RuntimeError(f'{name} has no finite gradient after backward.')
+    if not found:
+        raise RuntimeError("Adaptive fusion is enabled but has no trainable parameters.")
+    if not check_gradient:
+        logger.info('Adaptive fusion: trainable=True optimized=True')
 
 
 def _validate_spatial_pattern_training(model, optimizer, check_gradient=False):
@@ -162,6 +186,16 @@ def _log_fusion_state(model):
                     for name, value in diagnostics.items()
                 ),
             )
+    if hasattr(fusion_module, "get_adaptive_fusion_diagnostics"):
+        diagnostics = fusion_module.get_adaptive_fusion_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Adaptive fusion: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
 
 
 def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val_meter, val_loader):
@@ -291,6 +325,7 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
         if cur_iter == 0:
             _validate_spatial_pattern_training(model, optimizer, check_gradient=True)
             _validate_trajectory_geometry_training(model, optimizer, check_gradient=True)
+            _validate_adaptive_fusion_training(model, optimizer, check_gradient=True)
 
         # optimize
         if ((cur_iter + 1) % cfg.TRAIN.BATCH_SIZE_PER_TASK == 0):
@@ -327,6 +362,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     spatial_meter = SpatialPatternMeter()
     relation_meter = RelationalTemporalMeter()
     trajectory_geometry_meter = TrajectoryGeometryMeter()
+    adaptive_fusion_meter = AdaptiveFusionMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -341,6 +377,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         spatial_meter.update(model_dict, task_dict['target_labels'])
         relation_meter.update(model_dict, task_dict['target_labels'])
         trajectory_geometry_meter.update(model_dict, task_dict['target_labels'])
+        adaptive_fusion_meter.update(model_dict, task_dict['target_labels'])
 
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
@@ -372,6 +409,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     spatial_meter.log(logger)
     relation_meter.log(logger)
     trajectory_geometry_meter.log(logger)
+    adaptive_fusion_meter.log(logger)
     val_meter.reset()
     return val_acc
 
@@ -452,12 +490,14 @@ def train_few_shot(cfg):
         'relation_match_alpha',
         'trajectory_geometry_matcher',
         'trajectory_geometry_alpha',
+        'adaptive_fusion',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):
             param.requires_grad = False
     _validate_spatial_pattern_training(model, optimizer)
     _validate_trajectory_geometry_training(model, optimizer)
+    _validate_adaptive_fusion_training(model, optimizer)
 
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:
         for name, param in model.named_parameters():

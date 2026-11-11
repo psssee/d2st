@@ -20,7 +20,7 @@ import torch.nn.functional as F
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from utils.spatial_pattern_diagnostics import SpatialPatternMeter
+from utils.spatial_pattern_diagnostics import AdaptiveFusionMeter, SpatialPatternMeter
 
 
 def load_definitions(path, names, namespace):
@@ -40,22 +40,27 @@ def rearrange_frames(tensor, pattern):
 
 adapter_namespace = load_definitions(
     ROOT / 'models/base/adapter.py',
-    {'D2STSpatialPatternMatcher', 'D2STRelationalTemporalMatcher', 'D2STTrajectoryGeometryMatcher', 'ViT_CLIP', 'D2STTaskAwareMatcher',
+    {'D2STSpatialPatternMatcher', 'D2STRelationalTemporalMatcher', 'D2STTrajectoryGeometryMatcher', 'D2STQueryAdaptiveFusion', 'ViT_CLIP', 'D2STTaskAwareMatcher',
      'D2STMultiVelocityMatcher', 'OTAM_dist'},
     {'torch': torch, 'nn': nn, 'F': F, 'math': math, 'rearrange': rearrange_frames},
 )
 Matcher = adapter_namespace['D2STSpatialPatternMatcher']
 RelationMatcher = adapter_namespace['D2STRelationalTemporalMatcher']
 TrajectoryGeometryMatcher = adapter_namespace['D2STTrajectoryGeometryMatcher']
+AdaptiveFusion = adapter_namespace['D2STQueryAdaptiveFusion']
 ViT = adapter_namespace['ViT_CLIP']
 training_namespace = load_definitions(
     ROOT / 'runs/train_net_few_shot.py',
-    {'_validate_spatial_pattern_training', '_validate_trajectory_geometry_training'},
+    {'_validate_spatial_pattern_training', '_validate_trajectory_geometry_training',
+     '_validate_adaptive_fusion_training'},
     {'torch': torch, 'logger': logging.getLogger(__name__)},
 )
 validate_training = training_namespace['_validate_spatial_pattern_training']
 validate_trajectory_training = training_namespace[
     '_validate_trajectory_geometry_training'
+]
+validate_adaptive_fusion_training = training_namespace[
+    '_validate_adaptive_fusion_training'
 ]
 
 
@@ -159,6 +164,80 @@ class SpatialPatternTests(unittest.TestCase):
                 torch.randn(1, 3, 15, 6),
                 torch.tensor([0, 1]),
             )
+
+    def test_adaptive_fusion_shapes_calibration_and_gradient(self):
+        fusion = AdaptiveFusion(num_branches=2)
+        base = torch.randn(5, 5, requires_grad=True)
+        task = torch.randn(5, 5, requires_grad=True) * 4.0
+        velocity = torch.randn(5, 5, requires_grad=True) * 0.25
+        output, static = fusion(base, [task, velocity], [0.2, 0.3])
+        self.assertEqual(tuple(output.shape), (5, 5))
+        self.assertTrue(torch.isfinite(output).all())
+        torch.testing.assert_close(output, static)
+        output.square().mean().backward()
+        self.assertTrue(torch.isfinite(base.grad).all())
+        self.assertTrue(torch.isfinite(fusion.gate_network[-1].bias.grad).all())
+        diagnostics = fusion.get_diagnostics()
+        self.assertEqual(len(diagnostics['gate_mean']), 2)
+        self.assertTrue(all(0.0 <= value <= 1.0 for value in diagnostics['gate_mean']))
+
+    def test_adaptive_fusion_requires_matching_branch_shapes(self):
+        fusion = AdaptiveFusion(num_branches=2)
+        with self.assertRaisesRegex(ValueError, 'identical shapes'):
+            fusion(torch.randn(3, 5), [torch.randn(3, 5), torch.randn(3, 4)])
+
+    def test_adaptive_fusion_meter_uses_episode_paired_delta(self):
+        meter = AdaptiveFusionMeter()
+        make_logits = lambda predictions: F.one_hot(
+            torch.tensor(predictions), num_classes=2
+        ).float()
+        labels = torch.tensor([0, 1])
+        for full in [[0, 1], [1, 0]]:
+            meter.update({
+                'logits': make_logits(full),
+                'logits_without_adaptive_fusion': make_logits([0, 0]),
+                'legacy_global_fusion_logits': make_logits([0, 0]),
+            }, labels)
+        result = meter.summary()
+        self.assertEqual(result['episodes'], 2)
+        self.assertEqual(result['paired_delta_pp'], 0.0)
+        self.assertEqual(result['helped_predictions'], 1)
+        self.assertEqual(result['hurt_predictions'], 1)
+        self.assertEqual(result['legacy_paired_delta_pp'], 0.0)
+        self.assertIsNotNone(result['paired_ci95_halfwidth_pp'])
+
+    def test_adaptive_fusion_is_integrated_and_paired(self):
+        model = make_feature_model(enabled=False)
+        model.adaptive_fusion_enable = True
+        model.task_match_enable = True
+        model.task_match_use_focus = False
+        model.task_matcher = adapter_namespace['D2STTaskAwareMatcher'](6, 3)
+        model.task_match_alpha = nn.Parameter(torch.tensor(-4.0))
+        model.multi_velocity_enable = True
+        model.multi_velocity_matcher = adapter_namespace['D2STMultiVelocityMatcher'](6, 3)
+        model.multi_velocity_alpha = nn.Parameter(torch.tensor(-4.0))
+        model.register_buffer('multi_velocity_logit_delta', torch.tensor(0.0), persistent=False)
+        model.adaptive_fusion = AdaptiveFusion(num_branches=2)
+        model.register_buffer('adaptive_fusion_logit_delta', torch.tensor(0.0), persistent=False)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        apply_production_freeze_policy(model)
+        validate_adaptive_fusion_training(model, optimizer)
+        inputs = episode(shots=1)
+        model.eval()
+        outputs = model(inputs)
+        self.assertEqual(tuple(outputs['logits'].shape), (3, 2))
+        self.assertIn('logits_without_adaptive_fusion', outputs)
+        self.assertIn('adaptive_fusion_logits', outputs)
+        self.assertIn('legacy_global_fusion_logits', outputs)
+        torch.testing.assert_close(
+            outputs['logits'], outputs['logits_without_adaptive_fusion']
+        )
+        loss = F.cross_entropy(outputs['logits'], torch.tensor([0, 1, 0]))
+        loss.backward()
+        validate_adaptive_fusion_training(model, optimizer, check_gradient=True)
+        meter = AdaptiveFusionMeter()
+        meter.update(outputs, torch.tensor([0, 1, 0]))
+        self.assertEqual(meter.summary()['queries'], 3)
 
     def test_trajectory_geometry_fuses_and_gate_trains(self):
         model = make_feature_model(enabled=False)
@@ -400,6 +479,24 @@ class SpatialPatternTests(unittest.TestCase):
         self.assertEqual(experiment.pop('OUTPUT_DIR'),
                          'output/SSv2_Full_SUPPORT_AGGREGATION')
         self.assertEqual(experiment, baseline)
+
+    def test_adaptive_fusion_config_inherits_two_module_protocol(self):
+        config_dir = ROOT / 'config/ssv2_full'
+        base = yaml.safe_load(
+            (config_dir / 'ViT_SSv2_full_TASK_MATCH_MULTI_VELOCITY.yaml').read_text()
+        )
+        experiment = yaml.safe_load(
+            (config_dir / 'ViT_SSv2_full_TASK_MATCH_MULTI_VELOCITY_ADAPTIVE_FUSION.yaml').read_text()
+        )
+        self.assertEqual(experiment['_BASE'], './ViT_SSv2_full_TASK_MATCH_MULTI_VELOCITY.yaml')
+        self.assertTrue(experiment['TRAIN']['ENABLE'])
+        self.assertEqual(experiment['ADAPTIVE_FUSION']['ENABLE'], True)
+        self.assertEqual(experiment['OUTPUT_DIR'],
+                         'output/SSv2_Full_TASK_MATCH_MULTI_VELOCITY_ADAPTIVE_FUSION')
+        self.assertNotIn('TRAJECTORY_GEOMETRY', experiment)
+        self.assertEqual(experiment['INIT_METHOD'], 'tcp://localhost:1114')
+        self.assertTrue(base['TASK_MATCH']['ENABLE'])
+        self.assertTrue(base['MULTI_VELOCITY']['ENABLE'])
 
     def test_paired_meter_counts_and_episode_uncertainty(self):
         meter = SpatialPatternMeter()

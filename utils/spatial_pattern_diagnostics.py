@@ -148,3 +148,78 @@ class TrajectoryGeometryMeter:
         summary = self.summary()
         if summary:
             logger.info('Trajectory geometry paired evaluation: %s', summary)
+
+
+class AdaptiveFusionMeter:
+    """Paired evaluation of query-wise adaptive fusion."""
+
+    def __init__(self):
+        self.totals = None
+
+    @torch.no_grad()
+    def update(self, outputs, labels):
+        if 'logits_without_adaptive_fusion' not in outputs:
+            return
+        labels = labels.reshape(-1).long()
+        full = outputs['logits'].argmax(dim=-1).eq(labels)
+        without = outputs['logits_without_adaptive_fusion'].argmax(dim=-1).eq(labels)
+        legacy = outputs['legacy_global_fusion_logits'].argmax(dim=-1).eq(labels)
+        delta_static = full.double().mean() - without.double().mean()
+        delta_legacy = full.double().mean() - legacy.double().mean()
+        values = torch.stack([
+            full.sum(), without.sum(), legacy.sum(), labels.new_tensor(labels.numel()),
+            full.ne(without).sum(), (full & ~without).sum(),
+            (~full & without).sum(), full.ne(legacy).sum(),
+            (full & ~legacy).sum(), (~full & legacy).sum(),
+            delta_static, delta_static.square(), delta_legacy, delta_legacy.square(),
+            delta_static.new_tensor(1.0),
+        ]).to(dtype=torch.float64)
+        self.totals = values if self.totals is None else self.totals + values
+
+    def summary(self):
+        if self.totals is None:
+            return {}
+        totals = self.totals.clone()
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(totals)
+        (full, without, legacy, count, changed, helped, hurt, legacy_changed,
+         legacy_helped, legacy_hurt, delta, delta_sq, legacy_delta,
+         legacy_delta_sq, episodes) = totals.cpu().tolist()
+        mean_delta = delta / episodes
+        mean_legacy_delta = legacy_delta / episodes
+        ci_halfwidth = legacy_ci_halfwidth = None
+        if episodes > 1:
+            variance = max(
+                (delta_sq - delta * delta / episodes) / (episodes - 1), 0.0
+            )
+            ci_halfwidth = 1.96 * math.sqrt(variance / episodes) * 100.0
+            legacy_variance = max(
+                (legacy_delta_sq - legacy_delta * legacy_delta / episodes)
+                / (episodes - 1),
+                0.0,
+            )
+            legacy_ci_halfwidth = (
+                1.96 * math.sqrt(legacy_variance / episodes) * 100.0
+            )
+        return {
+            'episodes': int(episodes),
+            'queries': int(count),
+            'full_acc': 100.0 * full / count,
+            'without_adaptive_fusion_acc': 100.0 * without / count,
+            'legacy_global_fusion_acc': 100.0 * legacy / count,
+            'paired_delta_pp': 100.0 * mean_delta,
+            'paired_ci95_halfwidth_pp': ci_halfwidth,
+            'changed_predictions': int(changed),
+            'helped_predictions': int(helped),
+            'hurt_predictions': int(hurt),
+            'legacy_paired_delta_pp': 100.0 * mean_legacy_delta,
+            'legacy_paired_ci95_halfwidth_pp': legacy_ci_halfwidth,
+            'legacy_changed_predictions': int(legacy_changed),
+            'legacy_helped_predictions': int(legacy_helped),
+            'legacy_hurt_predictions': int(legacy_hurt),
+        }
+
+    def log(self, logger):
+        summary = self.summary()
+        if summary:
+            logger.info('Adaptive fusion paired evaluation: %s', summary)

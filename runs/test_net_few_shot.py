@@ -16,6 +16,7 @@ import utils.metrics as metrics
 import utils.misc as misc
 from utils.meters import ValMeter
 from utils.spatial_pattern_diagnostics import (
+    ClassConditionalMotionMeter,
     RelationalTemporalMeter,
     SpatialPatternMeter,
     TrajectoryGeometryMeter,
@@ -46,6 +47,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     spatial_meter = SpatialPatternMeter()
     relation_meter = RelationalTemporalMeter()
     trajectory_geometry_meter = TrajectoryGeometryMeter()
+    class_conditional_motion_meter = ClassConditionalMotionMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -59,6 +61,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         spatial_meter.update(model_dict, task_dict['target_labels'])
         relation_meter.update(model_dict, task_dict['target_labels'])
         trajectory_geometry_meter.update(model_dict, task_dict['target_labels'])
+        class_conditional_motion_meter.update(model_dict, task_dict['target_labels'])
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
             model_dict["logits"], task_dict["target_labels"].long()
@@ -100,6 +103,7 @@ def test_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     spatial_meter.log(logger)
     relation_meter.log(logger)
     trajectory_geometry_meter.log(logger)
+    class_conditional_motion_meter.log(logger)
     for perclass in top1_per_class:
         # top1_per_class[perclass] = num_per_class[perclass]
         logger.info("class: {}, acc: {}".format(perclass, top1_per_class[perclass] / num_per_class[perclass]))

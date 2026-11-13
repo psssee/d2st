@@ -1,0 +1,15 @@
+_BASE: ./ViT_SSv2_full_TASK_MATCH_MULTI_VELOCITY.yaml
+
+# Class-conditional semantic-motion alignment. This is a joint matching
+# mechanism, not a third independent classifier branch: the task frame prior
+# and the multi-velocity features are combined per candidate class.
+CLASS_CONDITIONAL_MOTION:
+  ENABLE: true
+  HIDDEN_RATIO: 0.25
+  MOTION_MIX_INIT: 0.1
+  DISTANCE_SCALE: 16.0
+  ALPHA_INIT: -4.0
+
+INIT_METHOD: tcp://localhost:1113
+CUDA_VISIBLE_DEVICES: "1"
+OUTPUT_DIR: output/SSv2_Full_TASK_MATCH_MULTI_VELOCITY_CLASS_CONDITIONAL_MOTION

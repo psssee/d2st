@@ -108,6 +108,46 @@ class RelationalTemporalMeter:
             logger.info('Relational temporal paired evaluation: %s', summary)
 
 
+class ClassConditionalMotionMeter:
+    """Paired evaluation for class-conditional semantic-motion alignment."""
+
+    def __init__(self):
+        self.totals = None
+
+    @torch.no_grad()
+    def update(self, outputs, labels):
+        if 'logits_without_class_conditional_motion' not in outputs:
+            return
+        labels = labels.reshape(-1).long()
+        full = outputs['logits'].argmax(dim=-1).eq(labels)
+        without = outputs['logits_without_class_conditional_motion'].argmax(dim=-1).eq(labels)
+        values = torch.stack([
+            full.sum(), without.sum(),
+            labels.new_tensor(labels.numel()), full.ne(without).sum(),
+            (full & ~without).sum(), (~full & without).sum(),
+        ]).to(dtype=torch.float64)
+        self.totals = values if self.totals is None else self.totals + values
+
+    def summary(self):
+        if self.totals is None:
+            return {}
+        full, without, count, changed, helped, hurt = self.totals.cpu().tolist()
+        return {
+            'queries': int(count),
+            'full_acc': 100.0 * full / count,
+            'without_joint_acc': 100.0 * without / count,
+            'paired_delta_pp': 100.0 * (full - without) / count,
+            'changed_predictions': int(changed),
+            'helped_predictions': int(helped),
+            'hurt_predictions': int(hurt),
+        }
+
+    def log(self, logger):
+        summary = self.summary()
+        if summary:
+            logger.info('Class-conditional semantic-motion paired evaluation: %s', summary)
+
+
 class TrajectoryGeometryMeter:
     """Paired evaluation of the trajectory-geometry branch."""
 

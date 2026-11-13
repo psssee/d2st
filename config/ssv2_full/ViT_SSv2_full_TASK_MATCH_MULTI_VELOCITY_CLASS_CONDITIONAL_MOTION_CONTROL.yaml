@@ -1,0 +1,10 @@
+_BASE: ./ViT_SSv2_full_TASK_MATCH_MULTI_VELOCITY.yaml
+
+# Matched control for CLASS_CONDITIONAL_MOTION: same dual-module training
+# protocol and a separate output directory, with the new interaction disabled.
+CLASS_CONDITIONAL_MOTION:
+  ENABLE: false
+
+INIT_METHOD: tcp://localhost:1114
+CUDA_VISIBLE_DEVICES: "0"
+OUTPUT_DIR: output/SSv2_Full_TASK_MATCH_MULTI_VELOCITY_CLASS_CONDITIONAL_MOTION_CONTROL

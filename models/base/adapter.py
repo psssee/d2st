@@ -651,7 +651,21 @@ class D2STTaskAwareMatcher(nn.Module):
         ]
         return torch.stack(prototypes, dim=0)
 
-    def forward(self, support_features, query_features, support_labels):
+    def get_match_weights(self, support_features, query_features, support_labels):
+        support_labels = support_labels.to(device=support_features.device)
+        support_prototypes = self._class_prototypes(support_features, support_labels)
+        support_context = support_prototypes.mean(dim=(0, 1))
+        query_context = query_features.mean(dim=1)
+        task_context = self.context_norm(query_context + support_context.unsqueeze(0))
+        match_logits = self.generator(task_context)
+        return F.softmax(
+            match_logits / self.temperature, dim=-1
+        ).view(-1, self.num_frames, self.num_frames)
+
+    def forward(
+        self, support_features, query_features, support_labels,
+        return_match_weights=False,
+    ):
         if support_features.ndim != 3 or query_features.ndim != 3:
             raise ValueError(
                 "Task-aware matcher expects support/query features as (B,T,D), "
@@ -666,16 +680,9 @@ class D2STTaskAwareMatcher(nn.Module):
         support_labels = support_labels.to(device=support_features.device)
         support_prototypes = self._class_prototypes(support_features, support_labels)
 
-        # TS-DCM-style task context: each query is conditioned on the complete
-        # support episode, not on one candidate class at a time.
-        support_context = support_prototypes.mean(dim=(0, 1))
-        query_context = query_features.mean(dim=1)
-        task_context = self.context_norm(query_context + support_context.unsqueeze(0))
-
-        match_logits = self.generator(task_context)
-        match_weights = F.softmax(
-            match_logits / self.temperature, dim=-1
-        ).view(-1, self.num_frames, self.num_frames)
+        match_weights = self.get_match_weights(
+            support_features, query_features, support_labels
+        )
 
         query_norm = F.normalize(query_features, dim=-1, eps=1e-6)
         support_norm = F.normalize(support_prototypes, dim=-1, eps=1e-6)
@@ -687,7 +694,10 @@ class D2STTaskAwareMatcher(nn.Module):
         ).sum(dim=(-1, -2))
 
         # Match the numerical range of the two T-frame sums used by Bi-MHM.
-        return -(1.0 - matched_similarity) * self.distance_scale
+        logits = -(1.0 - matched_similarity) * self.distance_scale
+        if return_match_weights:
+            return logits, match_weights
+        return logits
 
 
 class D2STEpisodePrototypeCalibrator(nn.Module):
@@ -925,6 +935,122 @@ class D2STMultiVelocityMatcher(nn.Module):
             "velocity_weights": [
                 value for value in F.softmax(self.velocity_logits.detach(), dim=0).tolist()
             ],
+        }
+
+
+class D2STClassConditionalSemanticMotionMatcher(nn.Module):
+    """Fuse task alignment priors with class-specific semantic/motion affinity."""
+
+    def __init__(
+        self, dim, num_frames, velocities=(1, 2), hidden_ratio=0.25,
+        motion_mix_init=0.1, distance_scale=None,
+    ):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        self.velocities = tuple(
+            sorted({int(v) for v in velocities if 0 < int(v) < self.num_frames})
+        )
+        if not self.velocities:
+            raise ValueError("Class-conditional motion requires at least one velocity")
+        self.distance_scale = float(
+            2 * self.num_frames if distance_scale is None else distance_scale
+        )
+        hidden_dim = max(int(dim * float(hidden_ratio)), 32)
+        self.velocity_router = nn.Sequential(
+            nn.LayerNorm(2 * dim),
+            nn.Linear(2 * dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, len(self.velocities)),
+        )
+        motion_mix_init = min(max(float(motion_mix_init), 1e-4), 1.0 - 1e-4)
+        self.motion_mix_logit = nn.Parameter(
+            torch.tensor(math.log(motion_mix_init / (1.0 - motion_mix_init)))
+        )
+
+    @staticmethod
+    def _class_prototypes(support_features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        return torch.stack([
+            support_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ])
+
+    def forward(
+        self, support_features, query_features, support_labels,
+        task_matcher, multi_velocity_matcher, task_logits=None,
+        task_match_weights=None,
+    ):
+        support_labels = support_labels.to(device=support_features.device)
+        if tuple(multi_velocity_matcher.velocities) != self.velocities:
+            raise ValueError(
+                "Class-conditional motion velocities must match MULTI_VELOCITY"
+            )
+        support_prototypes = self._class_prototypes(support_features, support_labels)
+        match_weights = task_match_weights
+        if match_weights is None:
+            match_weights = task_matcher.get_match_weights(
+                support_features, query_features, support_labels
+            )
+
+        query_norm = F.normalize(query_features, dim=-1, eps=1e-6)
+        support_norm = F.normalize(support_prototypes, dim=-1, eps=1e-6)
+        semantic_affinity = torch.einsum(
+            "qtd,csd->qcts", query_norm, support_norm
+        )
+
+        query_context = query_features.mean(dim=1)
+        class_context = support_prototypes.mean(dim=1)
+        router_input = torch.cat([
+            query_context[:, None, :].expand(-1, class_context.shape[0], -1),
+            class_context[None, :, :].expand(query_context.shape[0], -1, -1),
+        ], dim=-1)
+        velocity_weights = F.softmax(
+            self.velocity_router(router_input), dim=-1
+        ).to(dtype=query_features.dtype)
+        motion_affinities = []
+        for velocity in self.velocities:
+            query_motion = multi_velocity_matcher._motion_features(
+                query_features, velocity
+            )
+            support_motion = multi_velocity_matcher._motion_features(
+                support_prototypes, velocity
+            )
+            affinity = torch.einsum(
+                "qtd,csd->qcts",
+                F.normalize(query_motion, dim=-1, eps=1e-6),
+                F.normalize(support_motion, dim=-1, eps=1e-6),
+            )
+            batch, classes, query_steps, support_steps = affinity.shape
+            affinity = F.interpolate(
+                affinity.reshape(batch * classes, 1, query_steps, support_steps),
+                size=(self.num_frames, self.num_frames),
+                mode="bilinear",
+                align_corners=False,
+            ).reshape(batch, classes, self.num_frames, self.num_frames)
+            motion_affinities.append(affinity)
+
+        motion_affinity = (
+            torch.stack(motion_affinities, dim=0)
+            * velocity_weights.permute(2, 0, 1)[:, :, :, None, None]
+        ).sum(dim=0)
+        motion_mix = torch.sigmoid(self.motion_mix_logit)
+        joint_affinity = (
+            (1.0 - motion_mix) * semantic_affinity
+            + motion_mix * motion_affinity
+        )
+        matched_similarity = (
+            joint_affinity * match_weights.unsqueeze(1)
+        ).sum(dim=(-1, -2))
+        joint_logits = -(1.0 - matched_similarity) * self.distance_scale
+        if task_logits is None:
+            task_logits = task_matcher(
+                support_features, query_features, support_labels
+            )
+        return joint_logits - task_logits
+
+    def get_diagnostics(self):
+        return {
+            "motion_mix": torch.sigmoid(self.motion_mix_logit).detach().item(),
         }
 
 
@@ -1356,6 +1482,45 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "multi_velocity_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.class_conditional_motion_enable = (
+            hasattr(cfg, "CLASS_CONDITIONAL_MOTION")
+            and getattr(cfg.CLASS_CONDITIONAL_MOTION, "ENABLE", False)
+        )
+        if self.class_conditional_motion_enable:
+            if not self.task_match_enable or not self.multi_velocity_enable:
+                raise ValueError(
+                    "CLASS_CONDITIONAL_MOTION requires TASK_MATCH and MULTI_VELOCITY"
+                )
+            self.class_conditional_motion_matcher = (
+                D2STClassConditionalSemanticMotionMatcher(
+                    dim=self.width,
+                    num_frames=self.num_frames,
+                    velocities=velocities,
+                    hidden_ratio=float(
+                        getattr(cfg.CLASS_CONDITIONAL_MOTION, "HIDDEN_RATIO", 0.25)
+                    ),
+                    motion_mix_init=float(
+                        getattr(cfg.CLASS_CONDITIONAL_MOTION, "MOTION_MIX_INIT", 0.1)
+                    ),
+                    distance_scale=float(
+                        getattr(
+                            cfg.CLASS_CONDITIONAL_MOTION,
+                            "DISTANCE_SCALE",
+                            2 * self.num_frames,
+                        )
+                    ),
+                )
+            )
+            self.class_conditional_motion_alpha = nn.Parameter(
+                torch.tensor(
+                    float(getattr(cfg.CLASS_CONDITIONAL_MOTION, "ALPHA_INIT", -4.0))
+                )
+            )
+            self.register_buffer(
+                "class_conditional_motion_logit_delta",
+                torch.tensor(0.0),
+                persistent=False,
+            )
         self.spatial_pattern_enable = (
             hasattr(cfg, "SPATIAL_PATTERN")
             and getattr(cfg.SPATIAL_PATTERN, "ENABLE", False)
@@ -1453,6 +1618,10 @@ class ViT_CLIP(nn.Module):
             weights["multi_velocity"] = torch.sigmoid(
                 self.multi_velocity_alpha
             ).detach().item()
+        if self.class_conditional_motion_enable:
+            weights["class_conditional_motion"] = torch.sigmoid(
+                self.class_conditional_motion_alpha
+            ).detach().item()
         if self.spatial_pattern_enable:
             weights["spatial_pattern"] = torch.sigmoid(
                 self.spatial_pattern_alpha
@@ -1487,6 +1656,15 @@ class ViT_CLIP(nn.Module):
             return {}
         diagnostics = self.multi_velocity_matcher.get_diagnostics()
         diagnostics["logit_delta"] = self.multi_velocity_logit_delta.detach().item()
+        return diagnostics
+
+    def get_class_conditional_motion_diagnostics(self):
+        if not self.class_conditional_motion_enable:
+            return {}
+        diagnostics = self.class_conditional_motion_matcher.get_diagnostics()
+        diagnostics["logit_delta"] = (
+            self.class_conditional_motion_logit_delta.detach().item()
+        )
         return diagnostics
 
     def get_spatial_pattern_diagnostics(self):
@@ -1708,12 +1886,21 @@ class ViT_CLIP(nn.Module):
                 task_query = focus_query
 
         task_logits = None
+        task_match_weights = None
         if self.task_match_enable:
-            task_logits = self.task_matcher(
-                task_support,
-                task_query,
-                support_labels,
-            )
+            if self.class_conditional_motion_enable:
+                task_logits, task_match_weights = self.task_matcher(
+                    task_support,
+                    task_query,
+                    support_labels,
+                    return_match_weights=True,
+                )
+            else:
+                task_logits = self.task_matcher(
+                    task_support,
+                    task_query,
+                    support_labels,
+                )
 
         proto_calib_logits = None
         if self.proto_calib_enable:
@@ -1739,6 +1926,25 @@ class ViT_CLIP(nn.Module):
                 (multi_velocity_logits - base_logits).detach().abs().mean().to(
                     self.multi_velocity_logit_delta
                 )
+            )
+
+        class_conditional_motion_delta = None
+        if self.class_conditional_motion_enable:
+            class_conditional_motion_delta = self.class_conditional_motion_matcher(
+                support_features_raw,
+                query_features_raw,
+                support_labels,
+                self.task_matcher,
+                self.multi_velocity_matcher,
+                task_logits=task_logits,
+                task_match_weights=task_match_weights,
+            )
+            self.class_conditional_motion_logit_delta.copy_(
+                class_conditional_motion_delta
+                .detach()
+                .abs()
+                .mean()
+                .to(self.class_conditional_motion_logit_delta)
             )
 
         spatial_pattern_logits = None
@@ -1810,6 +2016,12 @@ class ViT_CLIP(nn.Module):
             logits = logits + multi_velocity_weight * (
                 multi_velocity_logits - base_logits.detach()
             )
+        logits_without_class_conditional_motion = logits
+        if class_conditional_motion_delta is not None:
+            class_conditional_motion_weight = torch.sigmoid(
+                self.class_conditional_motion_alpha
+            )
+            logits = logits + class_conditional_motion_weight * class_conditional_motion_delta
         logits_without_relation_match = logits
         if relation_match_logits is not None:
             relation_match_weight = torch.sigmoid(self.relation_match_alpha)
@@ -1840,6 +2052,13 @@ class ViT_CLIP(nn.Module):
         if relation_match_logits is not None and not self.training:
             return_dict['logits_without_relation_match'] = logits_without_relation_match.detach()
             return_dict['relation_match_logits'] = relation_match_logits.detach()
+        if class_conditional_motion_delta is not None and not self.training:
+            return_dict['logits_without_class_conditional_motion'] = (
+                logits_without_class_conditional_motion.detach()
+            )
+            return_dict['class_conditional_motion_delta'] = (
+                class_conditional_motion_delta.detach()
+            )
         if trajectory_geometry_logits is not None and not self.training:
             return_dict['logits_without_trajectory_geometry'] = (
                 logits_without_trajectory_geometry.detach()

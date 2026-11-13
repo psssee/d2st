@@ -19,6 +19,7 @@ import utils.metrics as metrics
 import utils.misc as misc
 from utils.meters import TrainMeter, ValMeter
 from utils.spatial_pattern_diagnostics import (
+    ClassConditionalMotionMeter,
     RelationalTemporalMeter,
     SpatialPatternMeter,
     TrajectoryGeometryMeter,
@@ -127,6 +128,16 @@ def _log_fusion_state(model):
         if diagnostics:
             logger.info(
                 "Multi-velocity matcher: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
+    if hasattr(fusion_module, "get_class_conditional_motion_diagnostics"):
+        diagnostics = fusion_module.get_class_conditional_motion_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Class-conditional semantic-motion matcher: %s",
                 ", ".join(
                     "{}={}".format(name, value)
                     for name, value in diagnostics.items()
@@ -327,6 +338,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     spatial_meter = SpatialPatternMeter()
     relation_meter = RelationalTemporalMeter()
     trajectory_geometry_meter = TrajectoryGeometryMeter()
+    class_conditional_motion_meter = ClassConditionalMotionMeter()
 
     for cur_iter, task_dict in enumerate(val_loader):
         if cur_iter >= cfg.TRAIN.NUM_TEST_TASKS:
@@ -341,6 +353,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         spatial_meter.update(model_dict, task_dict['target_labels'])
         relation_meter.update(model_dict, task_dict['target_labels'])
         trajectory_geometry_meter.update(model_dict, task_dict['target_labels'])
+        class_conditional_motion_meter.update(model_dict, task_dict['target_labels'])
 
         target_logits = model_dict['logits']
         loss = F.cross_entropy(
@@ -372,6 +385,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
     spatial_meter.log(logger)
     relation_meter.log(logger)
     trajectory_geometry_meter.log(logger)
+    class_conditional_motion_meter.log(logger)
     val_meter.reset()
     return val_acc
 
@@ -446,6 +460,8 @@ def train_few_shot(cfg):
         'proto_calib_alpha',
         'multi_velocity_matcher',
         'multi_velocity_alpha',
+        'class_conditional_motion_matcher',
+        'class_conditional_motion_alpha',
         'spatial_pattern_matcher',
         'spatial_pattern_alpha',
         'relation_matcher',

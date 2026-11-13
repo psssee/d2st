@@ -21,9 +21,10 @@ third standalone classifier score.
 python runs/run.py --cfg config/ssv2_full/ViT_SSv2_full_TASK_MATCH_MULTI_VELOCITY_CLASS_CONDITIONAL_MOTION.yaml
 ```
 
-The experiment inherits the SSv2 dual-module control settings and enables only
-CLASS_CONDITIONAL_MOTION. The legacy TASK_MATCH and MULTI_VELOCITY parameters
-are shared with the new interaction matcher.
+The experiment files spell out the full SSv2 dual-module protocol. They differ
+only in the CLASS_CONDITIONAL_MOTION switch, runtime port/GPU, and output
+directory. The legacy TASK_MATCH and MULTI_VELOCITY parameters are identical
+in both files.
 
 ## Evaluation
 

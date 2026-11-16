@@ -15,8 +15,13 @@
   evaluation fields except the intended router/runtime fields, and both use
   `TRAIN.ENABLE: true` with 30,000 training tasks and `[1, 5]` test shots.
 - F1: `git diff --check` -> exit 0.
-- F2: `python -m unittest tests.test_layerwise_adapter -v` -> not run; local
-  environment has no `torch` installation.
+- F2: `python -m unittest tests.test_layerwise_adapter -v` -> exit 1 before test
+  execution because the local environment has no `torch` installation
+  (`ModuleNotFoundError: No module named 'torch'`).
+- Sweep round 1: reviewer returned `verdict: gaps` with four semantic and one
+  interface finding; all were added to the ledger, and SPEC was corrected.
+- Sweep round 2: reviewer returned `verdict: gaps` with no undeclared rows; one
+  stale wording in A-007 was corrected to reflect the existing test-list loader.
 
 ## Deferred
 
@@ -24,5 +29,4 @@
 
 ## Blockers
 
-- Local environment may not contain PyTorch; runtime tests will be recorded as
-  unavailable if the dependency is missing.
+- F2 runtime checks remain blocked until run in an environment with PyTorch.

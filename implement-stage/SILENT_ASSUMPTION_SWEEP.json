@@ -2,39 +2,17 @@
   "review_independence": "same-family",
   "acceptance_status": "provisional",
   "reviewer": "gpt-6-astra",
+  "round": 2,
   "verdict": "gaps",
-  "semantic_undeclared": 4,
-  "undeclared": [
+  "semantic_undeclared": 0,
+  "undeclared": [],
+  "stale_rows": [
     {
-      "site": "models/base/adapter.py:468-501,604-609; config/ssv2_full/ViT_SSv2_full_LAYERWISE_ST_ADAPTER*.yaml:81-84",
-      "decision": "Uses zero-based layer indices and a linear +/-INIT_STRENGTH logit schedule normalized by num_layers-1.",
-      "why_it_matters": "This fixes the depth prior and meaning of logged layer weights, but the ledger only states the direction and transition concept.",
-      "class": "semantic"
-    },
-    {
-      "site": "models/base/adapter.py:539-556",
-      "decision": "Mixes residual-inclusive outputs xs=x+s_attn(...) and xt=x+t_attn(...) before GELU/up projection.",
-      "why_it_matters": "The ledger does not specify whether routing mixes attention deltas, residual outputs, or projected outputs; this changes what routing weights mean.",
-      "class": "semantic"
-    },
-    {
-      "site": "runs/train_net_few_shot.py:210-249; utils/checkpoint.py:462-529",
-      "decision": "Selects checkpoint_best.pyth using validation accuracy at 10,000-task intervals, then tests that checkpoint.",
-      "why_it_matters": "A-003 omits checkpoint selection, so the reported result is best-validation-selected rather than the final 30,000-task state.",
-      "class": "semantic"
-    },
-    {
-      "site": "config/ssv2_full/ViT_SSv2_full_LAYERWISE_ST_ADAPTER*.yaml:3,38; runs/test_net_few_shot.py:41-107; datasets/base/few_shot_dataset.py:91-106,250-257",
-      "decision": "Uses fixed seeds, 10,000 evaluation episodes, and the test dataset list; TEST_SET: val is not consulted by this execution path.",
-      "why_it_matters": "The ledger specifies shots but omits the actual episode count, seeds, and executed split, which determine what accuracy measures.",
-      "class": "semantic"
-    },
-    {
-      "site": "implement-stage/SPEC.md:12-14; models/base/adapter.py:1536; runs/train_net_few_shot.py:163-177; runs/test_net_few_shot.py:41-107",
-      "decision": "Logs per-layer routing only during training validation checkpoints; standalone evaluation does not log it.",
-      "why_it_matters": "The stated evaluation diagnostic output is absent from the test path.",
-      "class": "interface"
+      "id": "A-007",
+      "site": "implement-stage/ASSUMPTIONS.md:A-007; runs/train_net_few_shot.py:214-229; runs/test_net_few_shot.py:41-107; datasets/base/builder.py:86-91",
+      "stated_choice": "Select checkpoint_best.pyth by highest validation accuracy at each VAL_FRE_ITER checkpoint.",
+      "actual": "The train/eval path calls build_loader(cfg, \"test\"); Few_shot uses the test-list dataset for that split. TEST_SET: val is ignored. Thus checkpoint_best is selected by test-list accuracy, not by an independent validation split.",
+      "why_it_matters": "This changes model-selection/test leakage and therefore the meaning of the reported result; A-008 declares the test-list loader, so A-007's earlier validation wording was stale."
     }
-  ],
-  "stale_rows": []
+  ]
 }

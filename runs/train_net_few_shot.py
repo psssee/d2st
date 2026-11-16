@@ -162,6 +162,16 @@ def _log_fusion_state(model):
                     for name, value in diagnostics.items()
                 ),
             )
+    if hasattr(fusion_module, "get_layerwise_adapter_diagnostics"):
+        routing = fusion_module.get_layerwise_adapter_diagnostics()
+        if routing:
+            logger.info(
+                "Layerwise spatial/temporal routing: %s",
+                ", ".join(
+                    "L{}={:.3f}/{:.3f}".format(index, spatial, temporal)
+                    for index, spatial, temporal in routing
+                ),
+            )
 
 
 def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val_meter, val_loader):

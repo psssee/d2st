@@ -460,10 +460,48 @@ class ViT_DeformAttention(nn.Module):
         return out
 
 
+class D2STLayerwiseSTRouter(nn.Module):
+    """Learn a depth-specific mixture of spatial and temporal adapter paths."""
+
+    def __init__(self, layer_index, num_layers, transition_layer=6, init_strength=2.0):
+        super().__init__()
+        denominator = max(int(num_layers) - 1, 1)
+        depth_offset = (float(layer_index) - float(transition_layer)) / denominator
+        spatial_logit = -float(init_strength) * depth_offset
+        temporal_logit = float(init_strength) * depth_offset
+        self.routing_logits = nn.Parameter(
+            torch.tensor([spatial_logit, temporal_logit], dtype=torch.float32)
+        )
+
+    def forward(self, spatial_features, temporal_features):
+        weights = F.softmax(self.routing_logits, dim=0).to(
+            dtype=spatial_features.dtype
+        )
+        return weights[0] * spatial_features + weights[1] * temporal_features
+
+    def get_weights(self):
+        return F.softmax(self.routing_logits.detach(), dim=0).tolist()
+
+
 class ViT_D2ST_Adapter(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, layer_index=0):
         super().__init__()
         self.args = cfg
+        routing_cfg = getattr(cfg, "LAYERWISE_ST_ADAPTER", None)
+        self.layerwise_routing_enable = bool(
+            routing_cfg is not None and getattr(routing_cfg, "ENABLE", False)
+        )
+        if self.layerwise_routing_enable:
+            self.spatiotemporal_router = D2STLayerwiseSTRouter(
+                layer_index=layer_index,
+                num_layers=int(cfg.ADAPTER.LAYERS),
+                transition_layer=int(
+                    getattr(routing_cfg, "TRANSITION_LAYER", 6)
+                ),
+                init_strength=float(
+                    getattr(routing_cfg, "INIT_STRENGTH", 2.0)
+                ),
+            )
         self.in_channels = cfg.ADAPTER.WIDTH
         self.out_channels = cfg.ADAPTER.WIDTH
         self.adapter_channels = int(cfg.ADAPTER.WIDTH * cfg.ADAPTER.ADAPTER_SCALE)
@@ -505,7 +543,10 @@ class ViT_D2ST_Adapter(nn.Module):
         # Temporal Deformable Attention
         xt = x + self.t_attn(self.t_ln(x))
 
-        x = (xs + xt) / 2
+        if self.layerwise_routing_enable:
+            x = self.spatiotemporal_router(xs, xt)
+        else:
+            x = (xs + xt) / 2
         x = self.gelu(x)
 
         x = self.up(x)
@@ -530,7 +571,7 @@ class QuickGELU(nn.Module):
 
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, layer_index=0):
         super().__init__()
         d_model = cfg.ADAPTER.WIDTH
         n_head = cfg.ADAPTER.HEADS
@@ -542,7 +583,7 @@ class ResidualAttentionBlock(nn.Module):
             ("gelu", QuickGELU()),
             ("c_proj", nn.Linear(d_model * 4, d_model))
         ]))
-        self.Adapter = ViT_D2ST_Adapter(cfg)
+        self.Adapter = ViT_D2ST_Adapter(cfg, layer_index=layer_index)
 
     def attention(self, x):
         return self.attn(x, x, x, need_weights=False)[0]
@@ -559,7 +600,10 @@ class Transformer(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.use_checkpoint = hasattr(cfg.TRAIN, "GRADIENT_CHECKPOINT") and cfg.TRAIN.GRADIENT_CHECKPOINT
-        self.resblocks = nn.ModuleList([ResidualAttentionBlock(cfg) for _ in range(cfg.ADAPTER.LAYERS)])
+        self.resblocks = nn.ModuleList([
+            ResidualAttentionBlock(cfg, layer_index=index)
+            for index in range(cfg.ADAPTER.LAYERS)
+        ])
 
     def forward(self, x):
         for block in self.resblocks:
@@ -1488,6 +1532,16 @@ class ViT_CLIP(nn.Module):
         diagnostics = self.multi_velocity_matcher.get_diagnostics()
         diagnostics["logit_delta"] = self.multi_velocity_logit_delta.detach().item()
         return diagnostics
+
+    def get_layerwise_adapter_diagnostics(self):
+        routing = []
+        for index, block in enumerate(self.transformer.resblocks):
+            adapter = block.Adapter
+            if not getattr(adapter, "layerwise_routing_enable", False):
+                continue
+            spatial, temporal = adapter.spatiotemporal_router.get_weights()
+            routing.append((index, spatial, temporal))
+        return routing
 
     def get_spatial_pattern_diagnostics(self):
         if not self.spatial_pattern_enable:

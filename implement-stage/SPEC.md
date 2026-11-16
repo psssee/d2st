@@ -11,8 +11,8 @@ logit branch.
 
 - Input: the existing CLIP token sequence entering each `ViT_D2ST_Adapter`.
 - Configuration: `LAYERWISE_ST_ADAPTER` in the full SSv2 experiment files.
-- Output: the same token shape as the existing adapter; evaluation diagnostics
-  report per-layer spatial/temporal routing weights.
+- Output: the same token shape as the existing adapter; training validation
+  logs report per-layer spatial/temporal routing weights.
 
 ## Success Check
 

@@ -132,6 +132,16 @@ def _log_fusion_state(model):
                     for name, value in diagnostics.items()
                 ),
             )
+    if hasattr(fusion_module, "get_motion_token_diagnostics"):
+        diagnostics = fusion_module.get_motion_token_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Motion token selector: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
     if hasattr(fusion_module, "get_spatial_pattern_diagnostics"):
         diagnostics = fusion_module.get_spatial_pattern_diagnostics()
         if diagnostics:

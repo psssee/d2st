@@ -483,6 +483,71 @@ class D2STLayerwiseSTRouter(nn.Module):
         return F.softmax(self.routing_logits.detach(), dim=0).tolist()
 
 
+class D2STMotionTokenSelector(nn.Module):
+    """Select action-relevant patch content using temporal patch changes."""
+
+    def __init__(self, dim, hidden_ratio=0.25, dropout=0.1,
+                 temperature=0.7, alpha_init=-4.0, motion_bias_init=0.0):
+        super().__init__()
+        hidden_dim = max(int(dim * float(hidden_ratio)), 32)
+        self.temperature = max(float(temperature), 1e-4)
+        self.scorer = nn.Sequential(
+            nn.LayerNorm(dim * 2),
+            nn.Linear(dim * 2, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(float(dropout)),
+            nn.Linear(hidden_dim, 1),
+        )
+        nn.init.constant_(self.scorer[-1].weight, 0.0)
+        nn.init.constant_(self.scorer[-1].bias, 0.0)
+        self.action_projection = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, dim),
+        )
+        nn.init.constant_(self.action_projection[-1].weight, 0.0)
+        nn.init.constant_(self.action_projection[-1].bias, 0.0)
+        self.alpha = nn.Parameter(torch.tensor(float(alpha_init)))
+        self.motion_bias = nn.Parameter(torch.tensor(float(motion_bias_init)))
+        self.register_buffer("last_entropy", torch.tensor(0.0), persistent=False)
+        self.register_buffer("last_motion_energy", torch.tensor(0.0), persistent=False)
+
+    def forward(self, cls_features, patch_features):
+        if cls_features.ndim != 3 or patch_features.ndim != 4:
+            raise ValueError(
+                "Motion token selector expects CLS (B,T,D) and patch "
+                f"(B,T,P,D) features, got {tuple(cls_features.shape)} and "
+                f"{tuple(patch_features.shape)}"
+            )
+        if cls_features.shape[:2] != patch_features.shape[:2]:
+            raise ValueError("CLS and patch features must share batch/frame axes")
+
+        normalized = F.normalize(patch_features, dim=-1, eps=1e-6)
+        motion = torch.zeros_like(normalized)
+        motion[:, 1:] = normalized[:, 1:] - normalized[:, :-1]
+        motion_energy = motion.norm(dim=-1)
+        motion_centered = motion_energy - motion_energy.mean(dim=-1, keepdim=True)
+        score_input = torch.cat([normalized, motion], dim=-1)
+        scores = self.scorer(score_input).squeeze(-1)
+        scores = scores + self.motion_bias * motion_centered
+        weights = F.softmax(scores / self.temperature, dim=-1)
+        action_tokens = torch.einsum("btp,btpd->btd", weights, patch_features)
+        residual = self.action_projection(action_tokens)
+        output = cls_features + torch.sigmoid(self.alpha) * residual
+
+        entropy = -(weights.clamp_min(1e-6) * weights.clamp_min(1e-6).log())
+        self.last_entropy.copy_(entropy.sum(dim=-1).mean().detach())
+        self.last_motion_energy.copy_(motion_energy.mean().detach())
+        return output
+
+    def get_diagnostics(self):
+        return {
+            "gate": torch.sigmoid(self.alpha).detach().item(),
+            "motion_bias": self.motion_bias.detach().item(),
+            "selection_entropy": self.last_entropy.detach().item(),
+            "motion_energy": self.last_motion_energy.detach().item(),
+        }
+
+
 class ViT_D2ST_Adapter(nn.Module):
     def __init__(self, cfg, layer_index=0):
         super().__init__()
@@ -1300,6 +1365,27 @@ class ViT_CLIP(nn.Module):
         self.positional_embedding = nn.Parameter(scale * torch.randn((cfg.DATA.TRAIN_CROP_SIZE // self.patch_size) ** 2 + 1, self.width))
         self.ln_pre = LayerNorm(self.width)
         self.num_frames = cfg.DATA.NUM_INPUT_FRAMES
+        self.motion_token_enable = (
+            hasattr(cfg, "MOTION_TOKEN_SELECTOR")
+            and getattr(cfg.MOTION_TOKEN_SELECTOR, "ENABLE", False)
+        )
+        if self.motion_token_enable:
+            self.motion_token_selector = D2STMotionTokenSelector(
+                dim=self.width,
+                hidden_ratio=float(
+                    getattr(cfg.MOTION_TOKEN_SELECTOR, "HIDDEN_RATIO", 0.25)
+                ),
+                dropout=float(getattr(cfg.MOTION_TOKEN_SELECTOR, "DROPOUT", 0.1)),
+                temperature=float(
+                    getattr(cfg.MOTION_TOKEN_SELECTOR, "TEMPERATURE", 0.7)
+                ),
+                alpha_init=float(
+                    getattr(cfg.MOTION_TOKEN_SELECTOR, "ALPHA_INIT", -4.0)
+                ),
+                motion_bias_init=float(
+                    getattr(cfg.MOTION_TOKEN_SELECTOR, "MOTION_BIAS_INIT", 0.0)
+                ),
+            )
         self.support_aggregation_enable = (
             hasattr(cfg, "SUPPORT_AGGREGATION")
             and getattr(cfg.SUPPORT_AGGREGATION, "ENABLE", False)
@@ -1533,6 +1619,11 @@ class ViT_CLIP(nn.Module):
         diagnostics["logit_delta"] = self.multi_velocity_logit_delta.detach().item()
         return diagnostics
 
+    def get_motion_token_diagnostics(self):
+        if not self.motion_token_enable:
+            return {}
+        return self.motion_token_selector.get_diagnostics()
+
     def get_layerwise_adapter_diagnostics(self):
         routing = []
         for index, block in enumerate(self.transformer.resblocks):
@@ -1673,7 +1764,9 @@ class ViT_CLIP(nn.Module):
     def forward(self, inputs):
         support_images, query_images = inputs['support_set'], inputs['target_set']
         return_patch_tokens = (
-            self.spatial_pattern_enable or self.trajectory_geometry_enable
+            self.spatial_pattern_enable
+            or self.trajectory_geometry_enable
+            or self.motion_token_enable
         )
         if return_patch_tokens:
             support_features, support_patch_features = self.get_feat(
@@ -1702,6 +1795,15 @@ class ViT_CLIP(nn.Module):
                 self.num_frames,
                 query_patch_features.shape[1],
                 query_patch_features.shape[2],
+            )
+        if self.motion_token_enable:
+            support_features = self.motion_token_selector(
+                support_features,
+                support_patch_features,
+            )
+            query_features = self.motion_token_selector(
+                query_features,
+                query_patch_features,
             )
         support_features_raw = support_features
         query_features_raw = query_features

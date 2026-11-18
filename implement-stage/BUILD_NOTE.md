@@ -17,6 +17,10 @@
 - F1: `git diff --check` -> exit 0.
 - F2: not executable locally because the environment has no PyTorch; run the
   test on the training server.
+- Post-run audit: remote selector logs showed gate=`0.017986`, motion bias=`0`,
+  and entropy=`5.278115` at all checkpoints. The module had been omitted from
+  the training script's trainable-parameter allowlist and was frozen. The
+  allowlist and a startup optimizer/trainability check are now fixed.
 
 ## Deferred
 

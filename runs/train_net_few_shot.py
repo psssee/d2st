@@ -79,6 +79,28 @@ def _validate_trajectory_geometry_training(model, optimizer, check_gradient=Fals
             )
 
 
+def _validate_motion_token_training(model, optimizer):
+    """Fail early if the motion selector was accidentally frozen or omitted."""
+    optimized_ids = {
+        id(param) for group in optimizer.param_groups for param in group['params']
+    }
+    selector_parameters = [
+        (name, param)
+        for name, param in model.named_parameters()
+        if 'motion_token_selector' in name
+    ]
+    for name, param in selector_parameters:
+        if not param.requires_grad or id(param) not in optimized_ids:
+            raise RuntimeError(
+                f'{name} must be trainable and included in the optimizer.'
+            )
+    if selector_parameters:
+        logger.info(
+            'Motion token selector: %d trainable parameters verified.',
+            sum(param.numel() for _, param in selector_parameters),
+        )
+
+
 def _unwrap_meta_episode(task_dict):
     """Remove the DataLoader dimension for the single-episode meta learner."""
     episode_batch = int(task_dict["target_labels"].shape[0])
@@ -472,12 +494,14 @@ def train_few_shot(cfg):
         'relation_match_alpha',
         'trajectory_geometry_matcher',
         'trajectory_geometry_alpha',
+        'motion_token_selector',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):
             param.requires_grad = False
     _validate_spatial_pattern_training(model, optimizer)
     _validate_trajectory_geometry_training(model, optimizer)
+    _validate_motion_token_training(model, optimizer)
 
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:
         for name, param in model.named_parameters():

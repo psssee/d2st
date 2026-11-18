@@ -38,3 +38,12 @@ selection entropy remains finite and does not collapse immediately to one
 patch. A null or negative result is evidence that patch-level motion weighting
 does not complement the current D2ST frame matchers and should not be rescued
 by stacking another matcher on top.
+
+## Implementation audit
+
+The first server run of this branch exposed a training integration issue: the
+selector module was constructed but omitted from the training script's
+trainable-parameter allowlist. That run kept the gate at `0.017986`, motion bias
+at `0`, and entropy at `log(196)`, so it measured the frozen initialization,
+not the proposed method. The current commit adds the selector to the allowlist
+and fails at startup if its parameters are not trainable and optimized.

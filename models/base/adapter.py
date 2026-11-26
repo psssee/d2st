@@ -1049,6 +1049,30 @@ class ViT_CLIP(nn.Module):
         self.ln_pre = LayerNorm(self.width)
         self.num_frames = cfg.DATA.NUM_INPUT_FRAMES
         self.temporal_embedding = nn.Parameter(torch.zeros(1, self.num_frames, self.width))
+        self.temporal_visual_prompt_enable = (
+            hasattr(cfg, "TEMPORAL_VISUAL_PROMPT")
+            and getattr(cfg.TEMPORAL_VISUAL_PROMPT, "ENABLE", False)
+        )
+        if self.temporal_visual_prompt_enable:
+            prompt_tokens = max(
+                int(getattr(cfg.TEMPORAL_VISUAL_PROMPT, "NUM_TOKENS", 2)), 1
+            )
+            self.temporal_visual_prompt_tokens = nn.Parameter(
+                torch.empty(1, prompt_tokens, self.width)
+            )
+            self.temporal_visual_prompt_frame = nn.Parameter(
+                torch.zeros(1, self.num_frames, 1, self.width)
+            )
+            nn.init.normal_(
+                self.temporal_visual_prompt_tokens,
+                std=float(
+                    getattr(cfg.TEMPORAL_VISUAL_PROMPT, "INIT_STD", 0.02)
+                ),
+            )
+            self.temporal_visual_prompt_frame_enabled = bool(
+                getattr(cfg.TEMPORAL_VISUAL_PROMPT, "FRAME_CONDITIONED", True)
+            )
+            self.temporal_visual_prompt_scale = nn.Parameter(torch.tensor(0.0))
         self.transformer = Transformer(cfg)
         self.ln_post = LayerNorm(self.width)
         if hasattr(self.args.TRAIN, "USE_CLASSIFICATION_VALUE"):
@@ -1274,6 +1298,23 @@ class ViT_CLIP(nn.Module):
         x = rearrange(x, '(b t) n c -> (b n) t c', t=self.num_frames)
         x = x + self.temporal_embedding
         x = rearrange(x, '(b n) t c -> (b t) n c', n=n)
+
+        if self.temporal_visual_prompt_enable:
+            batch_size = x.shape[0] // self.num_frames
+            prompt = self.temporal_visual_prompt_tokens.unsqueeze(1).expand(
+                batch_size,
+                self.num_frames,
+                -1,
+                -1,
+            )
+            if self.temporal_visual_prompt_frame_enabled:
+                prompt = prompt + self.temporal_visual_prompt_frame
+            prompt = prompt.mean(dim=2)
+            prompt = prompt.reshape(batch_size * self.num_frames, 1, self.width)
+            prompt = torch.tanh(self.temporal_visual_prompt_scale) * prompt
+            prompt = prompt.to(dtype=x.dtype)
+            # Keep the 14x14 patch grid intact for the D2ST deformable adapter.
+            x = torch.cat([x[:, :1], x[:, 1:] + prompt], dim=1)
 
         x = self.ln_pre(x)
         x = x.permute(1, 0, 2)

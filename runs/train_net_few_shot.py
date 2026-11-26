@@ -128,7 +128,10 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
         # this evaluation improves, so the output directory keeps the best
         # generalizing model instead of the final overfit model.
         cur_epoch = cur_iter // cfg.SOLVER.STEPS_ITER
-        if (cur_iter + 1) % cfg.TRAIN.VAL_FRE_ITER == 0:
+        if (
+            val_loader is not None
+            and (cur_iter + 1) % cfg.TRAIN.VAL_FRE_ITER == 0
+        ):
             cur_epoch_save = cur_iter // cfg.TRAIN.VAL_FRE_ITER
             val_meter.set_model_ema_enabled(False)
             val_acc = eval_epoch(
@@ -240,6 +243,17 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
     # Log epoch stats.
     train_meter.log_epoch_stats(cur_epoch + cfg.TRAIN.NUM_FOLDS - 1)
     train_meter.reset()
+    if val_loader is None:
+        checkpoint_path = cu.save_checkpoint(
+            cfg.OUTPUT_DIR,
+            model,
+            optimizer,
+            cur_epoch + cfg.TRAIN.NUM_FOLDS - 1,
+            cfg,
+            None,
+            checkpoint_name="checkpoint_final.pyth",
+        )
+        logger.info("Saved train-only checkpoint: %s", checkpoint_path)
 
 
 @torch.no_grad()
@@ -348,6 +362,8 @@ def train_few_shot(cfg):
     trainable_markers = (
         'class_embedding',
         'temporal_embedding',
+        'temporal_visual_prompt',
+        'temporal_visual_prompt_scale',
         'Adapter',
         'ln_post',
         'classification_layer',

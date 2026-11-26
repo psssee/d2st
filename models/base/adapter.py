@@ -1112,6 +1112,20 @@ class ViT_CLIP(nn.Module):
             hasattr(cfg, "MULTI_VELOCITY")
             and getattr(cfg.MULTI_VELOCITY, "ENABLE", False)
         )
+        fusion_cfg = getattr(cfg, "FUSION", None)
+        self.normalize_match_residuals = bool(
+            fusion_cfg is not None
+            and getattr(
+                fusion_cfg,
+                "NORMALIZE_TASK_MATCH_MULTI_VELOCITY_RESIDUALS",
+                False,
+            )
+        )
+        self.fusion_residual_epsilon = float(
+            getattr(fusion_cfg, "EPSILON", 1e-6)
+            if fusion_cfg is not None
+            else 1e-6
+        )
         if self.multi_velocity_enable:
             velocities = getattr(cfg.MULTI_VELOCITY, "VELOCITIES", [1, 2])
             self.multi_velocity_matcher = D2STMultiVelocityMatcher(
@@ -1261,6 +1275,18 @@ class ViT_CLIP(nn.Module):
         ).reshape(query_num, support_num, self.num_frames, self.num_frames)
         dist = 1 - frame_sim
         return dist.min(3)[0].sum(2) + dist.min(2)[0].sum(2)
+
+    @staticmethod
+    def _match_residual_scale(branch_logits, base_logits, epsilon):
+        """Match centered branch-residual RMS to the base-logit RMS per query."""
+        base_logits = base_logits.detach()
+        residual = branch_logits - base_logits
+        residual = residual - residual.mean(dim=-1, keepdim=True)
+        base_centered = base_logits - base_logits.mean(dim=-1, keepdim=True)
+        residual_rms = residual.square().mean(dim=-1, keepdim=True).sqrt()
+        base_rms = base_centered.square().mean(dim=-1, keepdim=True).sqrt()
+        scale = base_rms / residual_rms.clamp_min(epsilon)
+        return residual * scale
 
     def get_feat(self, x, return_patch_tokens=False):
         x = self.conv1(x)  # b*t c h w
@@ -1430,7 +1456,14 @@ class ViT_CLIP(nn.Module):
             logits = logits + focus_weight * (focus_logits - base_logits.detach())
         if task_logits is not None:
             task_weight = torch.sigmoid(self.task_match_alpha)
-            logits = logits + task_weight * (task_logits - base_logits.detach())
+            task_residual = task_logits - base_logits.detach()
+            if self.normalize_match_residuals:
+                task_residual = self._match_residual_scale(
+                    task_logits,
+                    base_logits,
+                    self.fusion_residual_epsilon,
+                )
+            logits = logits + task_weight * task_residual
         if proto_calib_logits is not None:
             proto_calib_weight = torch.sigmoid(self.proto_calib_alpha)
             logits = logits + proto_calib_weight * (
@@ -1438,9 +1471,14 @@ class ViT_CLIP(nn.Module):
             )
         if multi_velocity_logits is not None:
             multi_velocity_weight = torch.sigmoid(self.multi_velocity_alpha)
-            logits = logits + multi_velocity_weight * (
-                multi_velocity_logits - base_logits.detach()
-            )
+            multi_velocity_residual = multi_velocity_logits - base_logits.detach()
+            if self.normalize_match_residuals:
+                multi_velocity_residual = self._match_residual_scale(
+                    multi_velocity_logits,
+                    base_logits,
+                    self.fusion_residual_epsilon,
+                )
+            logits = logits + multi_velocity_weight * multi_velocity_residual
         if spatial_pattern_logits is not None:
             spatial_pattern_weight = torch.sigmoid(self.spatial_pattern_alpha)
             logits = logits + spatial_pattern_weight * (

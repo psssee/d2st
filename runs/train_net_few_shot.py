@@ -77,6 +77,16 @@ def _log_fusion_state(model):
                     for name, value in diagnostics.items()
                 ),
             )
+    if hasattr(fusion_module, "get_reciprocal_confidence_diagnostics"):
+        diagnostics = fusion_module.get_reciprocal_confidence_diagnostics()
+        if diagnostics:
+            logger.info(
+                "Reciprocal confidence matcher: %s",
+                ", ".join(
+                    "{}={}".format(name, value)
+                    for name, value in diagnostics.items()
+                ),
+            )
     if hasattr(fusion_module, "get_spatial_pattern_diagnostics"):
         diagnostics = fusion_module.get_spatial_pattern_diagnostics()
         if diagnostics:
@@ -128,7 +138,10 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
         # this evaluation improves, so the output directory keeps the best
         # generalizing model instead of the final overfit model.
         cur_epoch = cur_iter // cfg.SOLVER.STEPS_ITER
-        if (cur_iter + 1) % cfg.TRAIN.VAL_FRE_ITER == 0:
+        if (
+            val_loader is not None
+            and (cur_iter + 1) % cfg.TRAIN.VAL_FRE_ITER == 0
+        ):
             cur_epoch_save = cur_iter // cfg.TRAIN.VAL_FRE_ITER
             val_meter.set_model_ema_enabled(False)
             val_acc = eval_epoch(
@@ -240,6 +253,18 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg, val
     # Log epoch stats.
     train_meter.log_epoch_stats(cur_epoch + cfg.TRAIN.NUM_FOLDS - 1)
     train_meter.reset()
+    if val_loader is None:
+        _log_fusion_state(model)
+        checkpoint_path = cu.save_checkpoint(
+            cfg.OUTPUT_DIR,
+            model,
+            optimizer,
+            cur_epoch + cfg.TRAIN.NUM_FOLDS - 1,
+            cfg,
+            None,
+            checkpoint_name="checkpoint_final.pyth",
+        )
+        logger.info("Saved train-only checkpoint: %s", checkpoint_path)
 
 
 @torch.no_grad()
@@ -359,6 +384,8 @@ def train_few_shot(cfg):
         'proto_calib_alpha',
         'multi_velocity_matcher',
         'multi_velocity_alpha',
+        'reciprocal_confidence_matcher',
+        'reciprocal_confidence_alpha',
     )
     for name, param in model.named_parameters():
         if not any(marker in name for marker in trainable_markers):

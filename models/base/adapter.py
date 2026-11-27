@@ -928,6 +928,116 @@ class D2STMultiVelocityMatcher(nn.Module):
         }
 
 
+class D2STReciprocalConfidenceMatcher(nn.Module):
+    """Refine Bi-MHM with sharp, bidirectionally supported correspondences.
+
+    The branch operates on the existing frame-similarity matrix. Uniform or
+    one-sided matches receive no confidence boost, while entries supported by
+    both row- and column-normalized assignments are moved slightly toward a
+    perfect cosine match. The original D2ST features remain unchanged.
+    """
+
+    def __init__(self, num_frames, temperature=0.1, strength=0.25,
+                 detach_confidence=True):
+        super().__init__()
+        self.num_frames = int(num_frames)
+        if self.num_frames < 2:
+            raise ValueError("Reciprocal confidence requires at least two frames.")
+        self.temperature = max(float(temperature), 1e-6)
+        self.strength = max(float(strength), 0.0)
+        self.detach_confidence = bool(detach_confidence)
+        self.register_buffer(
+            "last_mean_confidence", torch.tensor(0.0), persistent=False
+        )
+
+    @staticmethod
+    def _class_prototypes(support_features, support_labels):
+        unique_labels = torch.unique(support_labels, sorted=True)
+        prototypes = [
+            support_features[support_labels == label].mean(dim=0)
+            for label in unique_labels
+        ]
+        return torch.stack(prototypes, dim=0)
+
+    def refine_similarity(self, frame_similarity):
+        if frame_similarity.ndim != 4:
+            raise ValueError(
+                "Reciprocal confidence expects similarities as (Q,C,T,T), "
+                f"got {tuple(frame_similarity.shape)}"
+            )
+        if frame_similarity.shape[-2:] != (self.num_frames, self.num_frames):
+            raise ValueError(
+                f"Reciprocal confidence expects {self.num_frames}x{self.num_frames} "
+                f"similarities, got {tuple(frame_similarity.shape[-2:])}"
+            )
+
+        # Keep low-temperature softmax stable under mixed-precision training.
+        scores = frame_similarity.float() / self.temperature
+        row_probability = F.softmax(scores, dim=-1)
+        column_probability = F.softmax(scores, dim=-2)
+        uniform_floor = 1.0 / float(self.num_frames)
+        row_confidence = (
+            (row_probability - uniform_floor) / (1.0 - uniform_floor)
+        ).clamp_(0.0, 1.0)
+        column_confidence = (
+            (column_probability - uniform_floor) / (1.0 - uniform_floor)
+        ).clamp_(0.0, 1.0)
+        mutual_excess = row_confidence * column_confidence
+        confidence = torch.where(
+            mutual_excess > 0,
+            torch.sqrt(mutual_excess.clamp_min(1e-12)),
+            torch.zeros_like(mutual_excess),
+        )
+        confidence = confidence.to(dtype=frame_similarity.dtype)
+        if self.detach_confidence:
+            confidence = confidence.detach()
+
+        self.last_mean_confidence.copy_(
+            confidence.detach().mean().to(self.last_mean_confidence)
+        )
+        refined_similarity = frame_similarity + (
+            self.strength * confidence * (1.0 - frame_similarity)
+        )
+        return refined_similarity, confidence
+
+    def forward(self, support_features, query_features, support_labels):
+        if support_features.ndim != 3 or query_features.ndim != 3:
+            raise ValueError(
+                "Reciprocal confidence expects support/query features as (B,T,D), "
+                f"got {tuple(support_features.shape)} and {tuple(query_features.shape)}"
+            )
+        if (
+            support_features.shape[1] != self.num_frames
+            or query_features.shape[1] != self.num_frames
+        ):
+            raise ValueError(
+                f"Reciprocal confidence expects {self.num_frames} frames, got "
+                f"{support_features.shape[1]} and {query_features.shape[1]}"
+            )
+
+        support_labels = support_labels.to(device=support_features.device)
+        support_prototypes = self._class_prototypes(
+            support_features, support_labels
+        )
+        frame_similarity = torch.einsum(
+            "qtd,csd->qcts",
+            F.normalize(query_features, dim=-1, eps=1e-6),
+            F.normalize(support_prototypes, dim=-1, eps=1e-6),
+        )
+        refined_similarity, _ = self.refine_similarity(frame_similarity)
+        distance = 1.0 - refined_similarity
+        class_distance = (
+            distance.min(dim=3)[0].sum(dim=2)
+            + distance.min(dim=2)[0].sum(dim=2)
+        )
+        return -class_distance
+
+    def get_diagnostics(self):
+        return {
+            "mean_confidence": self.last_mean_confidence.detach().item(),
+        }
+
+
 class D2STSpatialPatternMatcher(nn.Module):
     """Match spatial pattern prototypes extracted from ViT patch tokens.
 
@@ -1137,6 +1247,43 @@ class ViT_CLIP(nn.Module):
             self.register_buffer(
                 "multi_velocity_logit_delta", torch.tensor(0.0), persistent=False
             )
+        self.reciprocal_confidence_enable = (
+            hasattr(cfg, "RECIPROCAL_CONFIDENCE")
+            and getattr(cfg.RECIPROCAL_CONFIDENCE, "ENABLE", False)
+        )
+        if self.reciprocal_confidence_enable:
+            self.reciprocal_confidence_matcher = D2STReciprocalConfidenceMatcher(
+                num_frames=self.num_frames,
+                temperature=float(
+                    getattr(cfg.RECIPROCAL_CONFIDENCE, "TEMPERATURE", 0.1)
+                ),
+                strength=float(
+                    getattr(cfg.RECIPROCAL_CONFIDENCE, "STRENGTH", 0.25)
+                ),
+                detach_confidence=bool(
+                    getattr(
+                        cfg.RECIPROCAL_CONFIDENCE,
+                        "DETACH_CONFIDENCE",
+                        True,
+                    )
+                ),
+            )
+            self.reciprocal_confidence_alpha = nn.Parameter(
+                torch.tensor(
+                    float(
+                        getattr(
+                            cfg.RECIPROCAL_CONFIDENCE,
+                            "ALPHA_INIT",
+                            -4.0,
+                        )
+                    )
+                )
+            )
+            self.register_buffer(
+                "reciprocal_confidence_logit_delta",
+                torch.tensor(0.0),
+                persistent=False,
+            )
         self.spatial_pattern_enable = (
             hasattr(cfg, "SPATIAL_PATTERN")
             and getattr(cfg.SPATIAL_PATTERN, "ENABLE", False)
@@ -1182,6 +1329,10 @@ class ViT_CLIP(nn.Module):
             weights["multi_velocity"] = torch.sigmoid(
                 self.multi_velocity_alpha
             ).detach().item()
+        if self.reciprocal_confidence_enable:
+            weights["reciprocal_confidence"] = torch.sigmoid(
+                self.reciprocal_confidence_alpha
+            ).detach().item()
         if self.spatial_pattern_enable:
             weights["spatial_pattern"] = torch.sigmoid(
                 self.spatial_pattern_alpha
@@ -1200,6 +1351,15 @@ class ViT_CLIP(nn.Module):
             return {}
         diagnostics = self.multi_velocity_matcher.get_diagnostics()
         diagnostics["logit_delta"] = self.multi_velocity_logit_delta.detach().item()
+        return diagnostics
+
+    def get_reciprocal_confidence_diagnostics(self):
+        if not self.reciprocal_confidence_enable:
+            return {}
+        diagnostics = self.reciprocal_confidence_matcher.get_diagnostics()
+        diagnostics["logit_delta"] = (
+            self.reciprocal_confidence_logit_delta.detach().item()
+        )
         return diagnostics
 
     def get_spatial_pattern_diagnostics(self):
@@ -1403,6 +1563,21 @@ class ViT_CLIP(nn.Module):
                 )
             )
 
+        reciprocal_confidence_logits = None
+        if self.reciprocal_confidence_enable:
+            reciprocal_confidence_logits = self.reciprocal_confidence_matcher(
+                support_features_raw,
+                query_features_raw,
+                support_labels,
+            )
+            self.reciprocal_confidence_logit_delta.copy_(
+                (reciprocal_confidence_logits - base_logits)
+                .detach()
+                .abs()
+                .mean()
+                .to(self.reciprocal_confidence_logit_delta)
+            )
+
         spatial_pattern_logits = None
         if self.spatial_pattern_enable:
             spatial_support_input = support_patch_features
@@ -1440,6 +1615,13 @@ class ViT_CLIP(nn.Module):
             multi_velocity_weight = torch.sigmoid(self.multi_velocity_alpha)
             logits = logits + multi_velocity_weight * (
                 multi_velocity_logits - base_logits.detach()
+            )
+        if reciprocal_confidence_logits is not None:
+            reciprocal_confidence_weight = torch.sigmoid(
+                self.reciprocal_confidence_alpha
+            )
+            logits = logits + reciprocal_confidence_weight * (
+                reciprocal_confidence_logits - base_logits.detach()
             )
         if spatial_pattern_logits is not None:
             spatial_pattern_weight = torch.sigmoid(self.spatial_pattern_alpha)
